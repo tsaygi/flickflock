@@ -1,0 +1,174 @@
+[package]
+name = "flickflock"
+description = "A fast, keyboard-driven, cross-platform image viewer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors = ["FlickFlock contributors"]
+
+[features]
+default = []
+avif = ["ff-core/avif"]
+
+[lints]
+workspace = true
+
+[dependencies]
+ff-core.workspace = true
+ff-platform.workspace = true
+image.workspace = true
+rayon.workspace = true
+serde.workspace = true
+tracing.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "system_fonts", "wayland", "x11"] }
+# Bundled monochrome icon glyphs for the HUD (same crate eframe uses; this only turns the feature on).
+egui = { version = "0.37", default-features = false, features = ["monochrome_emoji_fonts"] }
+bytemuck = { version = "1", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+trash = "5"
+arboard = "3"
+opener = { version = "0.9", features = ["reveal"] }
+interprocess = "2"
+rfd = "0.18"
+winit = "0.30"
+
+# ---- Packaging -------------------------------------------------------------
+# Windows (.msi / setup .exe) and Linux (.deb / AppImage) packages are built
+# with cargo-packager:  cargo packager --release -p flickflock
+# macOS uses packaging/macos/bundle.sh (Universal .app + .dmg).
+
+[package.metadata.packager]
+product-name = "FlickFlock"
+identifier = "io.github.tsaygi.flickflock"
+category = "Photography"
+description = "A fast, keyboard-driven image viewer"
+long-description = "Open a photo, then flick through every photo in that folder, and on into the neighbouring folders, with left/right keys you can remap."
+before-packaging-command = "cargo build --release -p flickflock"
+out-dir = "../../dist"
+icons = ["../../assets/icon-32.png", "../../assets/icon-128.png", "../../assets/icon-256.png", "../../assets/icon-512.png", "../../assets/icon.ico", "../../assets/icon.icns"]
+formats = ["deb", "appimage", "wix", "nsis"]
+
+[package.metadata.packager.deb.files]
+"../../packaging/linux/io.github.tsaygi.flickflock.metainfo.xml" = "usr/share/metainfo/io.github.tsaygi.flickflock.metainfo.xml"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["jpg", "jpeg", "jpe", "jfif"]
+mime-type = "image/jpeg"
+description = "JPEG image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["png", "apng"]
+mime-type = "image/png"
+description = "PNG image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["gif"]
+mime-type = "image/gif"
+description = "GIF image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["webp"]
+mime-type = "image/webp"
+description = "WebP image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["tif", "tiff"]
+mime-type = "image/tiff"
+description = "TIFF image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["bmp", "dib"]
+mime-type = "image/bmp"
+description = "Bitmap image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["ico"]
+mime-type = "image/vnd.microsoft.icon"
+description = "Icon"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["tga"]
+mime-type = "image/x-tga"
+description = "TGA image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["pbm", "pgm", "ppm", "pnm", "pam"]
+mime-type = "image/x-portable-anymap"
+description = "Netpbm image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["qoi"]
+mime-type = "image/qoi"
+description = "QOI image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["exr"]
+mime-type = "image/x-exr"
+description = "OpenEXR image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["hdr"]
+mime-type = "image/vnd.radiance"
+description = "Radiance HDR image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["dds"]
+mime-type = "image/x-dds"
+description = "DDS image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["jxl"]
+mime-type = "image/jxl"
+description = "JPEG XL image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["psd"]
+mime-type = "image/vnd.adobe.photoshop"
+description = "Photoshop document"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["avif"]
+mime-type = "image/avif"
+description = "AVIF image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["heic", "heif", "hif"]
+mime-type = "image/heic"
+description = "HEIF image"
+role = "viewer"
+
+[[package.metadata.packager.file-associations]]
+extensions = ["cr2", "cr3", "nef", "nrw", "arw", "raf", "orf", "dng", "rw2", "pef", "srw"]
+mime-type = "image/x-dcraw"
+description = "Camera RAW image"
+role = "viewer"
+
+# .rpm:  cargo build --release -p flickflock && cargo generate-rpm -p crates/ff-app
+[package.metadata.generate-rpm]
+name = "flickflock"
+assets = [
+    { source = "target/release/flickflock", dest = "/usr/bin/flickflock", mode = "755" },
+    { source = "packaging/linux/flickflock.desktop", dest = "/usr/share/applications/flickflock.desktop", mode = "644" },
+    { source = "packaging/linux/io.github.tsaygi.flickflock.metainfo.xml", dest = "/usr/share/metainfo/io.github.tsaygi.flickflock.metainfo.xml", mode = "644" },
+    { source = "assets/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/flickflock.png", mode = "644" },
+    { source = "assets/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/flickflock.png", mode = "644" },
+]

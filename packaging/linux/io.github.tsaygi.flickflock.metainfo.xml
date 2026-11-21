@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tsaygi.flickflock</id>
+  <name>FlickFlock</name>
+  <summary>Flick through a folder of photos</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>FlickFlock is a fast, keyboard-driven image viewer. Open a photo and flick through every photo in that folder, and on into the neighbouring folders, with left/right keys you can remap.</p>
+    <ul>
+      <li>Instant navigation with prefetching and a GPU-rendered canvas</li>
+      <li>Free panning, deep zoom and tiled rendering for huge images</li>
+      <li>Animated GIF, WebP and APNG with a frame-accurate timeline</li>
+      <li>Thumbnail strip, metadata panel, slideshow with transitions</li>
+      <li>Quick crop, rotate and flip with lossless JPEG rotation</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">flickflock.desktop</launchable>
+  <url type="homepage">https://github.com/tsaygi/flickflock</url>
+  <url type="bugtracker">https://github.com/tsaygi/flickflock/issues</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Viewer</category>
+  </categories>
+  <provides>
+    <binary>flickflock</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = ["crates/ff-core", "crates/ff-platform", "crates/ff-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/tsaygi/flickflock"
+rust-version = "1.88"
+
+[workspace.dependencies]
+ff-core = { path = "crates/ff-core" }
+ff-platform = { path = "crates/ff-platform" }
+image = { version = "0.25", default-features = false, features = [
+    "jpeg", "png", "gif", "webp", "tiff", "bmp", "ico", "tga", "pnm", "qoi", "exr", "hdr", "dds", "ff", "rayon",
+] }
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+tracing = "0.1"
+thiserror = "2"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+
+[workspace.lints.rust]
+unknown_lints = "allow"
+
+[workspace.lints.clippy]
+# `chunks_exact(4)` over pixel buffers reads better than `as_chunks` and keeps the MSRV lower.
+chunks_exact_to_as_chunks = "allow"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
+
+# Decoding in debug builds is painfully slow without optimisation.
+[profile.dev.package."*"]
+opt-level = 2

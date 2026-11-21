@@ -1,0 +1,5 @@
+/target
+/tests/fixtures/out
+.DS_Store
+*.dmg
+/dist

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=FlickFlock
+GenericName=Image Viewer
+Comment=Flick through a folder of photos
+Exec=flickflock %F
+Icon=flickflock
+Terminal=false
+Categories=Graphics;Viewer;Photography;
+Keywords=image;photo;picture;viewer;gallery;
+MimeType=image/jpeg;image/png;image/gif;image/webp;image/tiff;image/bmp;image/vnd.microsoft.icon;image/x-tga;image/x-portable-pixmap;image/x-portable-graymap;image/x-portable-bitmap;image/x-portable-anymap;image/qoi;image/x-exr;image/vnd.radiance;image/x-dds;image/jxl;image/vnd.adobe.photoshop;image/avif;image/heic;image/heif;image/x-canon-cr2;image/x-canon-cr3;image/x-nikon-nef;image/x-sony-arw;image/x-fuji-raf;image/x-olympus-orf;image/x-adobe-dng;image/x-panasonic-rw2;inode/directory;
+StartupNotify=true
+StartupWMClass=flickflock
