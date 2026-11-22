@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>FlickFlock</string>
     <key>CFBundleIdentifier</key>
-    <string>io.github.tsaygi.flickflock</string>
+    <string>org.saygi.flickflock</string>
     <key>CFBundleExecutable</key>
     <string>flickflock</string>
     <key>CFBundleIconFile</key>

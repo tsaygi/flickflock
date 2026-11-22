@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.tsaygi.flickflock</id>
+  <id>org.saygi.flickflock</id>
   <name>FlickFlock</name>
   <summary>Flick through a folder of photos</summary>
   <metadata_license>CC0-1.0</metadata_license>

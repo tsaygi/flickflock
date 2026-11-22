@@ -57,11 +57,16 @@ jobs:
       - name: Package (macOS, Universal)
         if: runner.os == 'macOS'
         run: packaging/macos/bundle.sh
-      - name: Package (Windows / Linux)
-        if: runner.os != 'macOS'
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
         run: |
           cargo install cargo-packager --locked
-          cargo packager --release -p flickflock
+          cargo packager --release -p flickflock --formats wix,nsis
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cargo install cargo-packager --locked
+          cargo packager --release -p flickflock --formats deb,appimage
       - name: Package (.rpm)
         if: runner.os == 'Linux'
         run: |

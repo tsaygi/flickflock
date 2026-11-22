@@ -3,8 +3,8 @@
 | Platform | Output | How |
 |---|---|---|
 | macOS | `dist/FlickFlock.app`, `dist/FlickFlock-<version>.dmg` (Universal: arm64 + x86_64) | `packaging/macos/bundle.sh` (`--native` for the host architecture only) |
-| Windows | `.msi` and setup `.exe` | `cargo install cargo-packager --locked` then `cargo packager --release -p flickflock` |
-| Linux | `.deb`, `AppImage` | `cargo packager --release -p flickflock` |
+| Windows | `.msi` and setup `.exe` | `cargo install cargo-packager --locked` then `cargo packager --release -p flickflock --formats wix,nsis` |
+| Linux | `.deb`, `AppImage` | `cargo packager --release -p flickflock --formats deb,appimage` |
 | Linux | `.rpm` | `cargo install cargo-generate-rpm` then `cargo build --release -p flickflock && cargo generate-rpm -p crates/ff-app` |
 
 The cargo-packager and cargo-generate-rpm settings live in `crates/ff-app/Cargo.toml`.

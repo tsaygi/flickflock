@@ -37,22 +37,22 @@ winit = "0.30"
 
 # ---- Packaging -------------------------------------------------------------
 # Windows (.msi / setup .exe) and Linux (.deb / AppImage) packages are built
-# with cargo-packager:  cargo packager --release -p flickflock
+# with cargo-packager, e.g.  cargo packager --release -p flickflock --formats deb,appimage
+# (formats are chosen on the command line: NSIS would otherwise also be attempted on Linux).
 # macOS uses packaging/macos/bundle.sh (Universal .app + .dmg).
 
 [package.metadata.packager]
 product-name = "FlickFlock"
-identifier = "io.github.tsaygi.flickflock"
+identifier = "org.saygi.flickflock"
 category = "Photography"
 description = "A fast, keyboard-driven image viewer"
 long-description = "Open a photo, then flick through every photo in that folder, and on into the neighbouring folders, with left/right keys you can remap."
 before-packaging-command = "cargo build --release -p flickflock"
 out-dir = "../../dist"
 icons = ["../../assets/icon-32.png", "../../assets/icon-128.png", "../../assets/icon-256.png", "../../assets/icon-512.png", "../../assets/icon.ico", "../../assets/icon.icns"]
-formats = ["deb", "appimage", "wix", "nsis"]
 
 [package.metadata.packager.deb.files]
-"../../packaging/linux/io.github.tsaygi.flickflock.metainfo.xml" = "usr/share/metainfo/io.github.tsaygi.flickflock.metainfo.xml"
+"../../packaging/linux/org.saygi.flickflock.metainfo.xml" = "usr/share/metainfo/org.saygi.flickflock.metainfo.xml"
 
 [[package.metadata.packager.file-associations]]
 extensions = ["jpg", "jpeg", "jpe", "jfif"]
@@ -168,7 +168,7 @@ name = "flickflock"
 assets = [
     { source = "target/release/flickflock", dest = "/usr/bin/flickflock", mode = "755" },
     { source = "packaging/linux/flickflock.desktop", dest = "/usr/share/applications/flickflock.desktop", mode = "644" },
-    { source = "packaging/linux/io.github.tsaygi.flickflock.metainfo.xml", dest = "/usr/share/metainfo/io.github.tsaygi.flickflock.metainfo.xml", mode = "644" },
+    { source = "packaging/linux/org.saygi.flickflock.metainfo.xml", dest = "/usr/share/metainfo/org.saygi.flickflock.metainfo.xml", mode = "644" },
     { source = "assets/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/flickflock.png", mode = "644" },
     { source = "assets/icon-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/flickflock.png", mode = "644" },
 ]
