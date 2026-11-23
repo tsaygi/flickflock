@@ -8,6 +8,7 @@ use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Str
 use eframe::egui_wgpu;
 use ff_core::config::ScrollMode;
 use ff_core::edit::ASPECT_PRESETS;
+use ff_core::i18n::{t, tf};
 use ff_core::input::Action;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -204,7 +205,7 @@ impl FlickApp {
                 text_color,
             );
             let galley = painter.layout(
-                error,
+                t(&error).to_owned(),
                 FontId::proportional(13.0),
                 text_color.gamma_multiply(0.75),
                 rect.width() * 0.8,
@@ -280,16 +281,16 @@ impl FlickApp {
             ui.label(egui::RichText::new("FlickFlock").size(26.0).strong());
             ui.add_space(4.0);
             let hint = if self.index.dir.as_os_str().is_empty() {
-                "Drop an image or a folder here"
+                t("Drop an image or a folder here")
             } else {
-                "No images in this folder"
+                t("No images in this folder")
             };
             ui.label(egui::RichText::new(hint).size(14.0).weak());
             ui.add_space(12.0);
-            if ui.button("Open…").clicked() {
+            if ui.button(t("Open…")).clicked() {
                 self.perform(Action::OpenFile);
             }
-            if ui.button("Open folder…").clicked() {
+            if ui.button(t("Open folder…")).clicked() {
                 self.perform(Action::OpenFolder);
             }
         });
@@ -312,7 +313,7 @@ impl FlickApp {
             .pinned
             .iter()
             .filter_map(|key| props.iter().find(|p| p.key() == *key))
-            .map(|p| format!("{}  {}", p.name, p.value))
+            .map(|p| format!("{}  {}", t(&p.name), p.value))
             .collect();
         if lines.is_empty() {
             return;
@@ -548,19 +549,19 @@ impl FlickApp {
                 ui.style_mut().visuals = egui::Visuals::dark();
                 hud_frame().show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Crop");
+                        ui.label(t("Crop"));
                         let selected = ASPECT_PRESETS
                             .iter()
                             .find(|(_, a)| *a == current_aspect)
                             .map(|(n, _)| *n)
                             .unwrap_or("Free");
                         egui::ComboBox::from_id_salt("ff-crop-aspect")
-                            .selected_text(selected)
+                            .selected_text(t(selected))
                             .width(70.0)
                             .show_ui(ui, |ui| {
                                 for (name, aspect) in ASPECT_PRESETS {
                                     if ui
-                                        .selectable_label(aspect == current_aspect, name)
+                                        .selectable_label(aspect == current_aspect, t(name))
                                         .clicked()
                                     {
                                         new_aspect = Some(aspect);
@@ -568,8 +569,8 @@ impl FlickApp {
                                 }
                             });
                         ui.label(egui::RichText::new(label).monospace());
-                        apply = ui.button("Apply").clicked();
-                        cancel = ui.button("Cancel").clicked();
+                        apply = ui.button(t("Apply")).clicked();
+                        cancel = ui.button(t("Cancel")).clicked();
                     });
                 });
             });
@@ -658,7 +659,7 @@ pub(crate) fn hud_frame() -> egui::Frame {
 /// Human-readable zoom state for tooltips.
 pub(crate) fn zoom_label(view: &View, percent: Option<f32>) -> String {
     match (view.zoom, percent) {
-        (Zoom::Fit, Some(p)) => format!("Fit · {p:.0}%"),
+        (Zoom::Fit, Some(p)) => tf("Fit · {0}%", &[&format!("{p:.0}")]),
         (_, Some(p)) => format!("{p:.0}%"),
         _ => String::new(),
     }

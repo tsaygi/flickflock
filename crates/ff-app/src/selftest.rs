@@ -4,6 +4,8 @@
 //! * an action name (`next_image`, `toggle_thumbnails`, …)
 //! * `ready` – wait until the current image is on screen
 //! * `wait:<ms>`, `hud`, `zoom:<factor>`, `pan:<dx>,<dy>`, `skim:<0..1>`, `open:<path>`, `tab:<settings tab>`
+//! * `lang:<code>` – switch the interface language (`auto`, `tr`, `ja`, …)
+//! * `toast:<text>` – show a toast (handy for checking font coverage)
 //! * `state` – print the browsing state to stdout
 //! * `shot:<file.png>` – save a screenshot of the window
 //! * `quit`
@@ -84,6 +86,11 @@ impl FlickApp {
                         self.view.pan[1] += y.parse().unwrap_or(0.0);
                     }
                 }
+                "lang" => {
+                    self.settings.general.language = arg.to_owned();
+                    crate::apply_language(arg);
+                }
+                "toast" => self.toast(arg.to_owned()),
                 "skim" => self.skim_to(arg.parse().unwrap_or(0.0)),
                 "endskim" => self.end_skim(),
                 "open" => self.open_path(Path::new(arg)),

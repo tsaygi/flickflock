@@ -34,6 +34,10 @@ opener = { version = "0.9", features = ["reveal"] }
 interprocess = "2"
 rfd = "0.18"
 winit = "0.30"
+sys-locale = "0.3"
+
+[dev-dependencies]
+toml.workspace = true
 
 # ---- Packaging -------------------------------------------------------------
 # Windows (.msi / setup .exe) and Linux (.deb / AppImage) packages are built

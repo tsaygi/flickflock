@@ -6,6 +6,7 @@ use crate::app::{
     ScanPurpose, SkimState,
 };
 use ff_core::folder::{FolderIndex, FolderWatcher, ImageEntry};
+use ff_core::i18n::{t, tf};
 use ff_core::loader::Level;
 use ff_core::nav::{self, Direction, DirectoryNavigator, FsSource, Step};
 use std::path::{Path, PathBuf};
@@ -39,7 +40,7 @@ impl FlickApp {
         }
         let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
         let Ok(md) = std::fs::metadata(&path) else {
-            self.toast(format!("Cannot open {}", path.display()));
+            self.toast(tf("Cannot open {0}", &[&path.display()]));
             return;
         };
         self.slideshow = None;
@@ -120,7 +121,7 @@ impl FlickApp {
         let mut index = match result {
             Ok(index) => index,
             Err(e) => {
-                self.toast(format!("Cannot read folder: {e}"));
+                self.toast(tf("Cannot read folder: {0}", &[&e]));
                 return;
             }
         };
@@ -178,7 +179,7 @@ impl FlickApp {
             None => {
                 self.leave_current();
                 if was_open {
-                    self.toast(format!("No images in {}", folder_name(&self.index.dir)));
+                    self.toast(tf("No images in {0}", &[&folder_name(&self.index.dir)]));
                 }
             }
         }
@@ -337,9 +338,9 @@ impl FlickApp {
                 self.go_index(i, Record::Step);
             }
             Step::Stay => self.toast(if direction == Direction::Forward {
-                "Last image"
+                t("Last image")
             } else {
-                "First image"
+                t("First image")
             }),
             Step::Leave => self.leave_folder(direction, landing_for(direction), true),
         }
@@ -360,9 +361,9 @@ impl FlickApp {
             NeighborState::Ready(Some(ix)) => ix.clone(),
             NeighborState::Ready(None) => {
                 self.toast(if direction == Direction::Forward {
-                    "No more folders"
+                    t("No more folders")
                 } else {
-                    "No previous folder"
+                    t("No previous folder")
                 });
                 return;
             }
@@ -383,16 +384,13 @@ impl FlickApp {
                 .unwrap_or(false);
             if !armed {
                 self.boundary_armed = Some((direction, Instant::now()));
-                let (edge, here, there) = (
-                    if direction == Direction::Forward {
-                        "End"
-                    } else {
-                        "Start"
-                    },
-                    folder_name(&current_dir),
-                    folder_name(&next.dir),
-                );
-                self.toast(format!("{edge} of {here} — press again for {there}"));
+                let (here, there) = (folder_name(&current_dir), folder_name(&next.dir));
+                let message = if direction == Direction::Forward {
+                    tf("End of {0} — press again for {1}", &[&here, &there])
+                } else {
+                    tf("Start of {0} — press again for {1}", &[&here, &there])
+                };
+                self.toast(message);
                 return;
             }
         }
@@ -489,12 +487,12 @@ impl FlickApp {
             Some(path) if path.exists() => self.show_file(&path, Record::None),
             Some(path) => {
                 self.history.remove(&path);
-                self.toast("That image no longer exists");
+                self.toast(t("That image no longer exists"));
             }
             None => self.toast(if forward {
-                "Nothing to go forward to"
+                t("Nothing to go forward to")
             } else {
-                "Nothing to go back to"
+                t("Nothing to go back to")
             }),
         }
     }

@@ -93,6 +93,8 @@ pub const TRANSITIONS: [&str; 11] = [
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct General {
+    /// Interface language: "auto" (follow the OS) or a code such as "tr".
+    pub language: String,
     pub end_of_folder: EndOfFolder,
     pub background: Background,
     pub zoom_small_to_fit: bool,
@@ -113,6 +115,7 @@ pub struct General {
 impl Default for General {
     fn default() -> Self {
         Self {
+            language: "auto".to_owned(),
             end_of_folder: EndOfFolder::Continue,
             background: Background::DarkGray,
             zoom_small_to_fit: false,

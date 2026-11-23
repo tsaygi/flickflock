@@ -10,6 +10,7 @@ use ff_core::config::Settings;
 use ff_core::decode::{Decoders, Format};
 use ff_core::edit::{EditSession, SaveFormat};
 use ff_core::folder::{FolderIndex, FolderWatcher};
+use ff_core::i18n::{t, tf};
 use ff_core::input::{Action, Binding};
 use ff_core::loader::{Level, Loader, Prepared};
 use ff_core::meta::Property;
@@ -403,9 +404,9 @@ impl FlickApp {
             tracing::warn!("config: {w}");
         }
         if !app.settings_warnings.is_empty() {
-            app.toast(format!(
-                "Config file: {} setting(s) were invalid and reset to defaults",
-                app.settings_warnings.len()
+            app.toast(tf(
+                "Config file: {0} setting(s) were invalid and reset to defaults",
+                &[&app.settings_warnings.len()],
             ));
         }
         if let Some(first) = startup.initial.first() {
@@ -507,7 +508,7 @@ impl FlickApp {
 
     pub(crate) fn stop_slideshow(&mut self) {
         if self.slideshow.take().is_some() {
-            self.toast("Slideshow stopped");
+            self.toast(t("Slideshow stopped"));
         }
     }
 
@@ -520,7 +521,7 @@ impl FlickApp {
                 next_at: Instant::now() + interval,
                 queue: Vec::new(),
             });
-            self.toast("Slideshow started — Esc to stop");
+            self.toast(t("Slideshow started — Esc to stop"));
         }
     }
 

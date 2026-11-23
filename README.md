@@ -23,6 +23,14 @@ Open a photo, then flick through every photo in that folder — and on into the 
 - **Quick edits** – rotate, flip, crop with aspect presets, extend canvas; undo/redo; Save / Save As with EXIF kept; lossless JPEG rotation.
 - **File operations** – move to Trash, rename, reveal in the file manager, copy image or path; the folder is watched and updates live.
 
+### Languages
+
+The interface follows your system language and can be switched under **Settings ▸ General ▸ Language**:
+
+English, 简体中文, हिन्दी, Español, Français, বাংলা, Português, Русский, Bahasa Indonesia, Deutsch, 日本語, Türkçe, 한국어, Tiếng Việt, Italiano, Polski.
+
+Translations live in `crates/ff-core/locales/<code>.toml` as plain `"English" = "translation"` tables; corrections are very welcome. A test fails if any language is missing a string the app can show.
+
 ### Formats
 
 JPEG, PNG/APNG, GIF, WebP, TIFF, BMP, ICO, TGA, PNM, QOI, OpenEXR, Radiance HDR, DDS, Farbfeld, JPEG XL and PSD (flattened) are decoded in pure Rust. HEIC/HEIF uses the system codec (ImageIO on macOS, WIC on Windows, `libheif` on Linux when installed). AVIF opens through the system codec on macOS and Windows, or everywhere when built with `--features avif`. Camera RAW files (CR2, CR3, NEF, ARW, RAF, ORF, DNG, RW2, …) show their embedded preview. Formats are detected by content, not by file extension.
@@ -127,7 +135,7 @@ FLICKFLOCK_SELFTEST="ready;next_image;ready;state;shot:/tmp/shot.png;quit" \
 
 ## Roadmap
 
-Full RAW development, wide-gamut/HDR output, compare mode, histogram and colour picker, batch rename/convert, ratings in XMP sidecars, rebinding every shortcut from the UI, localisation.
+Full RAW development, wide-gamut/HDR output, compare mode, histogram and colour picker, batch rename/convert, ratings in XMP sidecars, rebinding every shortcut from the UI, right-to-left languages.
 
 ## License
 

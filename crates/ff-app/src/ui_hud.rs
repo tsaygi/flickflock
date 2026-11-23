@@ -6,6 +6,7 @@ use crate::ui_canvas::{hud_frame, zoom_label};
 use eframe::egui::{self, Align2, Color32, Pos2, RichText, Vec2};
 use ff_core::anim::{MAX_SPEED, MIN_SPEED};
 use ff_core::folder::{GroupKey, SortKey};
+use ff_core::i18n::{t, tf};
 use ff_core::input::Action;
 use ff_core::IS_MAC;
 
@@ -23,7 +24,7 @@ impl FlickApp {
 
     /// A menu entry that performs `action`, showing its shortcut.
     fn action_item(&mut self, ui: &mut egui::Ui, action: Action, enabled: bool) {
-        let button = egui::Button::new(action.label()).shortcut_text(self.shortcut(action));
+        let button = egui::Button::new(t(action.label())).shortcut_text(self.shortcut(action));
         if ui.add_enabled(enabled, button).clicked() {
             ui.close();
             self.perform(action);
@@ -41,28 +42,31 @@ impl FlickApp {
         self.action_item(ui, Action::OpenFile, true);
         self.action_item(ui, Action::OpenFolder, true);
         ui.separator();
-        ui.menu_button("Sort by", |ui| {
+        ui.menu_button(t("Sort by"), |ui| {
             let mut changed = false;
             for key in SortKey::ALL {
                 changed |= ui
-                    .radio_value(&mut self.settings.sorting.key, key, key.label())
+                    .radio_value(&mut self.settings.sorting.key, key, t(key.label()))
                     .clicked();
             }
             ui.separator();
             changed |= ui
-                .checkbox(&mut self.settings.sorting.descending, "Descending")
+                .checkbox(&mut self.settings.sorting.descending, t("Descending"))
                 .clicked();
             changed |= ui
-                .checkbox(&mut self.settings.sorting.recursive, "Include subfolders")
+                .checkbox(
+                    &mut self.settings.sorting.recursive,
+                    t("Include subfolders"),
+                )
                 .clicked();
             if changed {
                 self.resort();
             }
         });
-        ui.menu_button("Group by", |ui| {
+        ui.menu_button(t("Group by"), |ui| {
             let mut changed = false;
             if ui
-                .radio(self.settings.sorting.group_by.is_empty(), "None")
+                .radio(self.settings.sorting.group_by.is_empty(), t("None"))
                 .clicked()
             {
                 self.settings.sorting.group_by.clear();
@@ -77,8 +81,8 @@ impl FlickApp {
                     .iter()
                     .position(|g| *g == key);
                 let label = match level {
-                    Some(n) => format!("{}  (level {})", key.label(), n + 1),
-                    None => key.label().to_owned(),
+                    Some(n) => tf("{0}  (level {1})", &[&t(key.label()), &(n + 1)]),
+                    None => t(key.label()).to_owned(),
                 };
                 if ui.selectable_label(level.is_some(), label).clicked() {
                     match level {
@@ -95,14 +99,14 @@ impl FlickApp {
             }
         });
         ui.separator();
-        ui.menu_button("Edit", |ui| {
+        ui.menu_button(t("Edit"), |ui| {
             self.action_item(ui, Action::RotateLeft, has_image);
             self.action_item(ui, Action::RotateRight, has_image);
             self.action_item(ui, Action::FlipHorizontal, has_image);
             self.action_item(ui, Action::FlipVertical, has_image);
             self.action_item(ui, Action::Crop, has_image);
             if ui
-                .add_enabled(has_image, egui::Button::new("Extend canvas…"))
+                .add_enabled(has_image, egui::Button::new(t("Extend canvas…")))
                 .clicked()
             {
                 ui.close();
@@ -118,7 +122,7 @@ impl FlickApp {
             self.action_item(ui, Action::Save, dirty);
             self.action_item(ui, Action::SaveAs, has_image);
         });
-        ui.menu_button("File", |ui| {
+        ui.menu_button(t("File"), |ui| {
             self.action_item(ui, Action::Rename, has_image);
             self.action_item(ui, Action::Trash, has_image);
             self.action_item(ui, Action::Reveal, has_image);
@@ -127,7 +131,7 @@ impl FlickApp {
             self.action_item(ui, Action::CopyImage, has_image);
             self.action_item(ui, Action::CopyPath, has_image);
         });
-        ui.menu_button("View", |ui| {
+        ui.menu_button(t("View"), |ui| {
             self.action_item(ui, Action::ZoomFit, has_image);
             self.action_item(ui, Action::ZoomActual, has_image);
             self.action_item(ui, Action::ZoomIn, has_image);
@@ -137,7 +141,7 @@ impl FlickApp {
             self.action_item(ui, Action::ToggleInfo, true);
             self.action_item(ui, Action::ToggleFullscreen, true);
         });
-        ui.menu_button("Go", |ui| {
+        ui.menu_button(t("Go"), |ui| {
             self.action_item(ui, Action::PrevImage, has_image);
             self.action_item(ui, Action::NextImage, has_image);
             self.action_item(ui, Action::FirstImage, has_image);
@@ -156,8 +160,8 @@ impl FlickApp {
     }
 
     pub(crate) fn ui_hud(&mut self, ctx: &egui::Context, visible: bool) {
-        // The HUD stays out of the way while cropping or running a slideshow.
-        let visible = visible && self.crop.is_none();
+        // The HUD stays out of the way while cropping and while Settings is open.
+        let visible = visible && self.crop.is_none() && !self.show_settings;
         let opacity =
             ctx.animate_bool_with_time(egui::Id::unique("ff-hud-fade"), visible, FADE_SECONDS);
         if opacity <= 0.0 {
@@ -190,7 +194,7 @@ impl FlickApp {
                         let back = egui::Button::new("⏴").frame(false);
                         if ui
                             .add_enabled(self.history.can_go_back(), back)
-                            .on_hover_text("Back")
+                            .on_hover_text(t("Back"))
                             .clicked()
                         {
                             self.perform(Action::HistoryBack);
@@ -236,7 +240,7 @@ impl FlickApp {
                         }
                         if self.slideshow.is_some() {
                             ui.label(
-                                RichText::new("▶ Slideshow")
+                                RichText::new(t("▶ Slideshow"))
                                     .color(Color32::from_rgb(120, 200, 255)),
                             );
                         }
@@ -328,9 +332,9 @@ impl FlickApp {
             .min_size(Vec2::splat(26.0));
         let shortcut = self.shortcut(action);
         let tip = if shortcut.is_empty() {
-            action.label().to_owned()
+            t(action.label()).to_owned()
         } else {
-            format!("{}  ({shortcut})", action.label())
+            format!("{}  ({shortcut})", t(action.label()))
         };
         if ui.add_enabled(enabled, button).on_hover_text(tip).clicked() {
             self.perform(action);
@@ -350,7 +354,7 @@ impl FlickApp {
             };
             if ui
                 .add(icon(if a.player.playing { "⏸" } else { "▶" }, white))
-                .on_hover_text("Play / pause")
+                .on_hover_text(t("Play / pause"))
                 .clicked()
             {
                 a.player.playing = !a.player.playing;
@@ -358,14 +362,14 @@ impl FlickApp {
             }
             if ui
                 .add(icon("⏮", white))
-                .on_hover_text("Previous frame")
+                .on_hover_text(t("Previous frame"))
                 .clicked()
             {
                 a.player.step(-1, count);
             }
             if ui
                 .add(icon("⏭", white))
-                .on_hover_text("Next frame")
+                .on_hover_text(t("Next frame"))
                 .clicked()
             {
                 a.player.step(1, count);
@@ -385,7 +389,7 @@ impl FlickApp {
             );
             if ui
                 .add(icon("⏪", if a.player.reverse { on } else { white }))
-                .on_hover_text("Reverse")
+                .on_hover_text(t("Reverse"))
                 .clicked()
             {
                 a.player.reverse = !a.player.reverse;
@@ -404,7 +408,7 @@ impl FlickApp {
             a.player.set_speed(speed);
             if ui
                 .add(icon("🔁", if a.player.looping { on } else { white }))
-                .on_hover_text("Loop")
+                .on_hover_text(t("Loop"))
                 .clicked()
             {
                 a.player.looping = !a.player.looping;

@@ -38,6 +38,16 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 - **Move to Trash on macOS uses `NSFileManager`**, not Finder scripting, so no Automation permission prompt appears. The trade-off is that Finder's "Put Back" is not available for those items.
 - **Single instance** uses a local socket in the user's cache directory (a named pipe on Windows). With "Open files in the existing window" off, or with `--new-window`, a separate process and window is started.
 
+## Localisation
+
+- **English text is the key.** UI code calls `t("Open…")` / `tf("Moved {0} to the Trash", &[&name])`; each language is a flat TOML table from English to the translation, embedded in the binary. A missing translation falls back to English instead of showing a key name.
+- **Numbered placeholders** (`{0}`, `{1}`) let translations reorder values.
+- **Coverage is enforced by tests.** One test scans the app's source for `t`/`tf` calls (plus labels that come from `ff-core`) and fails when any locale lacks a string or carries an unused one; another checks that every translation keeps its key's placeholders.
+- **Sixteen languages, chosen by number of speakers among those the UI toolkit renders correctly.** egui shapes complex scripts (Devanagari, Bengali) but has no bidirectional layout yet, so Arabic, Urdu and Hebrew would show words in the wrong order and are left out until that changes.
+- **Glyphs for non-Latin scripts come from the system's fonts**; only Latin text and icons are bundled.
+- Not translated: key names in shortcuts, EXIF/XMP tag names, error details produced by decoding libraries and the operating system, and log output.
+- The language follows the OS (`sys-locale`) unless set in Settings; it switches immediately, without a restart.
+
 ## Decoding
 
 - **Format detection reads magic bytes**; the extension only disambiguates containers (TIFF-based RAW) and formats without a signature (TGA). Folder *indexing* goes by extension so a 2,000-file folder on a network share is not opened file by file.
@@ -59,5 +69,6 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 ## Dependencies beyond the original list
 
 - `rfd` – native open/save dialogs.
+- `sys-locale` – reads the OS language for the default interface language.
 - `qoi` – thumbnail cache files and compressed animation frames.
 - `parking_lot`, `crossbeam-channel`, `thiserror`, `bytemuck` – small, common building blocks.

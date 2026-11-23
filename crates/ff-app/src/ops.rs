@@ -4,6 +4,7 @@
 use crate::app::{BgEvent, CropState, EditEvent, EditState, FlickApp, Modal, Record};
 use ff_core::decode::{DecodeOptions, Format};
 use ff_core::edit::{self, EditOp, EditSession, SaveFormat};
+use ff_core::i18n::{t, tf};
 use ff_core::loader::{Level, Prepared};
 use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
@@ -61,7 +62,7 @@ impl FlickApp {
             return;
         }
         if self.anim.as_ref().map(|a| a.path == path).unwrap_or(false) {
-            self.toast("Animated images cannot be edited");
+            self.toast(t("Animated images cannot be edited"));
             return;
         }
         let needs_new = self.edit.as_ref().map(|e| e.path != path).unwrap_or(true);
@@ -197,7 +198,7 @@ impl FlickApp {
                 if self.edit.as_ref().map(|e| e.path == path).unwrap_or(false) {
                     self.edit = None;
                 }
-                self.toast(format!("Cannot edit this image: {error}"));
+                self.toast(tf("Cannot edit this image: {0}", &[&error]));
             }
             EditEvent::Saved {
                 source,
@@ -220,7 +221,7 @@ impl FlickApp {
                         .unwrap_or_default()
                         .to_string_lossy()
                         .into_owned();
-                    self.toast(format!("Saved {name}"));
+                    self.toast(tf("Saved {0}", &[&name]));
                     if dest != source && dest.parent() == Some(self.index.dir.as_path()) {
                         // A new file in this folder: show it once the watcher re-indexes.
                         self.watch_dirty_since = Some(std::time::Instant::now());
@@ -231,7 +232,7 @@ impl FlickApp {
                         state.busy = false;
                     }
                     self.modal = Some(Modal::Message {
-                        title: "Could not save".into(),
+                        title: t("Could not save").into(),
                         body: error,
                     });
                 }
@@ -340,7 +341,7 @@ impl FlickApp {
         self.discard_edits();
         if let Err(e) = move_to_trash(&path) {
             self.modal = Some(Modal::Message {
-                title: "Could not move to Trash".into(),
+                title: t("Could not move to Trash").into(),
                 body: e.to_string(),
             });
             return;
@@ -362,10 +363,10 @@ impl FlickApp {
         // Advance to the image that took its place (or the new last one).
         if self.index.is_empty() {
             self.anim = None;
-            self.toast(format!("Moved {name} to the Trash — folder is now empty"));
+            self.toast(tf("Moved {0} to the Trash — folder is now empty", &[&name]));
         } else {
             self.go_index(idx.min(self.index.len() - 1), Record::Step);
-            self.toast(format!("Moved {name} to the Trash"));
+            self.toast(tf("Moved {0} to the Trash", &[&name]));
         }
     }
 
@@ -380,8 +381,8 @@ impl FlickApp {
             || new_name == ".."
         {
             self.modal = Some(Modal::Message {
-                title: "Invalid name".into(),
-                body: "File names cannot be empty or contain slashes.".into(),
+                title: t("Invalid name").into(),
+                body: t("File names cannot be empty or contain slashes.").into(),
             });
             return;
         }
@@ -391,14 +392,14 @@ impl FlickApp {
         }
         if new.exists() {
             self.modal = Some(Modal::Message {
-                title: "Cannot rename".into(),
-                body: format!("“{new_name}” already exists."),
+                title: t("Cannot rename").into(),
+                body: tf("“{0}” already exists.", &[&new_name]),
             });
             return;
         }
         if let Err(e) = std::fs::rename(&old, &new) {
             self.modal = Some(Modal::Message {
-                title: "Cannot rename".into(),
+                title: t("Cannot rename").into(),
                 body: e.to_string(),
             });
             return;
@@ -417,7 +418,7 @@ impl FlickApp {
         self.edit = None;
         self.anim = None;
         self.strip_scroll_to = true;
-        self.toast(format!("Renamed to {new_name}"));
+        self.toast(tf("Renamed to {0}", &[&new_name]));
     }
 
     pub(crate) fn reveal_current(&mut self) {
@@ -425,7 +426,7 @@ impl FlickApp {
             return;
         };
         if let Err(e) = opener::reveal(&path) {
-            self.toast(format!("Cannot reveal file: {e}"));
+            self.toast(tf("Cannot reveal file: {0}", &[&e]));
         }
     }
 
@@ -434,7 +435,7 @@ impl FlickApp {
             return;
         };
         if let Err(e) = opener::open(&path) {
-            self.toast(format!("Cannot open file: {e}"));
+            self.toast(tf("Cannot open file: {0}", &[&e]));
         }
     }
 
@@ -444,8 +445,8 @@ impl FlickApp {
         };
         let text = path.to_string_lossy().into_owned();
         match with_clipboard(|c| c.set_text(text)) {
-            Ok(()) => self.toast("Path copied"),
-            Err(e) => self.toast(format!("Clipboard error: {e}")),
+            Ok(()) => self.toast(t("Path copied")),
+            Err(e) => self.toast(tf("Clipboard error: {0}", &[&e])),
         }
     }
 
@@ -478,15 +479,15 @@ impl FlickApp {
                 })
             });
             BgEvent::Toast(match result {
-                Ok(()) => "Image copied".to_owned(),
-                Err(e) => format!("Could not copy image: {e}"),
+                Ok(()) => t("Image copied").to_owned(),
+                Err(e) => tf("Could not copy image: {0}", &[&e]),
             })
         });
     }
 
     pub(crate) fn open_file_dialog(&mut self) {
         let mut dialog =
-            rfd::FileDialog::new().add_filter("Images", ff_core::decode::SUPPORTED_EXTENSIONS);
+            rfd::FileDialog::new().add_filter(t("Images"), ff_core::decode::SUPPORTED_EXTENSIONS);
         if !self.index.dir.as_os_str().is_empty() {
             dialog = dialog.set_directory(&self.index.dir);
         }
@@ -516,7 +517,7 @@ impl FlickApp {
             .to_string_lossy()
             .into_owned();
         let mut dialog = rfd::FileDialog::new()
-            .add_filter(format.label(), &[format.extension()])
+            .add_filter(t(format.label()), &[format.extension()])
             .set_file_name(format!("{stem}.{}", format.extension()));
         if let Some(dir) = current.parent() {
             dialog = dialog.set_directory(dir);

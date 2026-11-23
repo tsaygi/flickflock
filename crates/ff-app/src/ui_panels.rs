@@ -6,16 +6,26 @@ use eframe::egui::{self, Color32, RichText};
 use ff_core::config::{Background, FolderEntry, ScrollMode, StripPosition, TRANSITIONS};
 use ff_core::edit::{EditOp, SaveFormat};
 use ff_core::folder::{GroupKey, SortKey};
+use ff_core::i18n::{t, tf, Lang};
 use ff_core::input::{Action, BindError, Binding, KeyBindings};
 use ff_core::nav::{EndOfFolder, FolderSort};
 use ff_core::IS_MAC;
 
-fn transition_label(name: &str) -> String {
-    let mut label = name.replace('_', " ");
-    if let Some(first) = label.get_mut(0..1) {
-        first.make_ascii_uppercase();
+fn transition_label(name: &str) -> &str {
+    match name {
+        "none" => t("None"),
+        "crossfade" => t("Crossfade"),
+        "slide" => t("Slide"),
+        "push" => t("Push"),
+        "zoom" => t("Zoom"),
+        "wipe" => t("Wipe"),
+        "iris" => t("Iris"),
+        "page_curl" => t("Page curl"),
+        "ripple" => t("Ripple"),
+        "pixelate" => t("Pixelate"),
+        "dissolve" => t("Dissolve"),
+        other => other,
     }
-    label
 }
 
 impl FlickApp {
@@ -28,7 +38,7 @@ impl FlickApp {
             .show(ui, |ui| {
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    ui.heading("Info");
+                    ui.heading(t("Info"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.small_button("×").clicked() {
                             self.perform(Action::ToggleInfo);
@@ -36,7 +46,7 @@ impl FlickApp {
                     });
                 });
                 ui.label(
-                    RichText::new("📌 pins a property onto the image")
+                    RichText::new(t("📌 pins a property onto the image"))
                         .weak()
                         .small(),
                 );
@@ -45,7 +55,7 @@ impl FlickApp {
                     if self.display_path().is_some() {
                         ui.add(egui::Spinner::new());
                     } else {
-                        ui.weak("No image");
+                        ui.weak(t("No image"));
                     }
                     return;
                 };
@@ -62,7 +72,8 @@ impl FlickApp {
                             if rows.is_empty() {
                                 continue;
                             }
-                            egui::CollapsingHeader::new(RichText::new(group).strong())
+                            egui::CollapsingHeader::new(RichText::new(t(group)).strong())
+                                .id_salt(group)
                                 .default_open(true)
                                 .show(ui, |ui| {
                                     egui::Grid::new(("ff-info-grid", group))
@@ -81,21 +92,21 @@ impl FlickApp {
                                                 if ui
                                                     .add(pin)
                                                     .on_hover_text(if pinned {
-                                                        "Unpin"
+                                                        t("Unpin")
                                                     } else {
-                                                        "Pin to image"
+                                                        t("Pin to image")
                                                     })
                                                     .clicked()
                                                 {
                                                     toggled = Some(key);
                                                 }
-                                                ui.label(RichText::new(&p.name).weak());
+                                                ui.label(RichText::new(t(&p.name)).weak());
                                                 let value = egui::Label::new(&p.value)
                                                     .wrap()
                                                     .sense(egui::Sense::click());
                                                 if ui
                                                     .add(value)
-                                                    .on_hover_text("Click to copy")
+                                                    .on_hover_text(t("Click to copy"))
                                                     .clicked()
                                                 {
                                                     ui.ctx().copy_text(p.value.clone());
@@ -129,9 +140,9 @@ impl FlickApp {
         match self.settings.bindings.add(action, binding.clone(), IS_MAC) {
             Ok(()) => self.mark_settings_dirty(),
             Err(BindError::Reserved) => {
-                self.record_message = Some(format!(
-                    "{} is reserved by the system and cannot be used.",
-                    binding.display(IS_MAC)
+                self.record_message = Some(tf(
+                    "{0} is reserved by the system and cannot be used.",
+                    &[&binding.display(IS_MAC)],
                 ));
             }
             Err(BindError::Conflict(other)) => {
@@ -148,7 +159,7 @@ impl FlickApp {
             return;
         }
         let mut open = true;
-        egui::Window::new("Settings")
+        egui::Window::new(t("Settings"))
             .open(&mut open)
             .collapsible(false)
             .default_size([560.0, 480.0])
@@ -156,12 +167,12 @@ impl FlickApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     for (tab, label) in [
-                        (SettingsTab::General, "General"),
-                        (SettingsTab::Keys, "Keys"),
-                        (SettingsTab::Folders, "Folders"),
-                        (SettingsTab::Performance, "Performance"),
-                        (SettingsTab::Transitions, "Transitions"),
-                        (SettingsTab::Sorting, "Sorting"),
+                        (SettingsTab::General, t("General")),
+                        (SettingsTab::Keys, t("Keys")),
+                        (SettingsTab::Folders, t("Folders")),
+                        (SettingsTab::Performance, t("Performance")),
+                        (SettingsTab::Transitions, t("Transitions")),
+                        (SettingsTab::Sorting, t("Sorting")),
                     ] {
                         if ui
                             .selectable_label(self.settings_tab == tab, label)
@@ -186,7 +197,7 @@ impl FlickApp {
                 if let Some(path) = &self.settings_path {
                     ui.separator();
                     ui.label(
-                        RichText::new(format!("Stored in {}", path.display()))
+                        RichText::new(tf("Stored in {0}", &[&path.display()]))
                             .weak()
                             .small(),
                     );
@@ -200,30 +211,31 @@ impl FlickApp {
 
     fn settings_general(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
+        let mut language_changed = false;
         let g = &mut self.settings.general;
         egui::Grid::new("ff-set-general")
             .num_columns(2)
             .spacing([16.0, 10.0])
             .show(ui, |ui| {
-                ui.label("At the end of a folder");
+                ui.label(t("At the end of a folder"));
                 ui.vertical(|ui| {
                     changed |= ui
                         .radio_value(
                             &mut g.end_of_folder,
                             EndOfFolder::Continue,
-                            "Continue into the next folder",
+                            t("Continue into the next folder"),
                         )
                         .changed();
                     changed |= ui
-                        .radio_value(&mut g.end_of_folder, EndOfFolder::Wrap, "Wrap around")
+                        .radio_value(&mut g.end_of_folder, EndOfFolder::Wrap, t("Wrap around"))
                         .changed();
                     changed |= ui
-                        .radio_value(&mut g.end_of_folder, EndOfFolder::Stop, "Stop")
+                        .radio_value(&mut g.end_of_folder, EndOfFolder::Stop, t("Stop"))
                         .changed();
                 });
                 ui.end_row();
 
-                ui.label("Background");
+                ui.label(t("Background"));
                 egui::ComboBox::from_id_salt("ff-bg")
                     .selected_text(background_label(g.background))
                     .show_ui(ui, |ui| {
@@ -240,42 +252,69 @@ impl FlickApp {
                     });
                 ui.end_row();
 
-                ui.label("Scroll wheel");
+                ui.label(t("Language"));
+                let auto = t("System language");
+                let current = Lang::from_code(&g.language)
+                    .map(Lang::native_name)
+                    .unwrap_or(auto);
+                egui::ComboBox::from_id_salt("ff-language")
+                    .selected_text(current)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(Lang::from_code(&g.language).is_none(), auto)
+                            .clicked()
+                        {
+                            g.language = "auto".to_owned();
+                            language_changed = true;
+                        }
+                        for lang in Lang::ALL {
+                            if ui
+                                .selectable_label(g.language == lang.code(), lang.native_name())
+                                .clicked()
+                            {
+                                g.language = lang.code().to_owned();
+                                language_changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+
+                ui.label(t("Scroll wheel"));
                 ui.horizontal(|ui| {
                     changed |= ui
-                        .radio_value(&mut g.scroll, ScrollMode::Zoom, "Zooms")
+                        .radio_value(&mut g.scroll, ScrollMode::Zoom, t("Zooms"))
                         .changed();
                     changed |= ui
-                        .radio_value(&mut g.scroll, ScrollMode::Navigate, "Changes image")
+                        .radio_value(&mut g.scroll, ScrollMode::Navigate, t("Changes image"))
                         .changed();
                 });
                 ui.end_row();
 
-                ui.label("Zoom");
+                ui.label(t("Zoom"));
                 ui.vertical(|ui| {
                     changed |= ui
                         .checkbox(
                             &mut g.zoom_small_to_fit,
-                            "Zoom small images to fit the window",
+                            t("Zoom small images to fit the window"),
                         )
                         .changed();
                     changed |= ui
                         .checkbox(
                             &mut g.pixelated_zoom,
-                            "Show sharp pixels above 200% (pixel art)",
+                            t("Show sharp pixels above 200% (pixel art)"),
                         )
                         .changed();
                 });
                 ui.end_row();
 
-                ui.label("Windows");
+                ui.label(t("Windows"));
                 ui.vertical(|ui| {
                     changed |= ui
-                        .checkbox(&mut g.single_window, "Open files in the existing window")
+                        .checkbox(&mut g.single_window, t("Open files in the existing window"))
                         .changed();
                     if !IS_MAC
                         && ui
-                            .checkbox(&mut g.borderless, "Borderless window (no title bar)")
+                            .checkbox(&mut g.borderless, t("Borderless window (no title bar)"))
                             .changed()
                     {
                         changed = true;
@@ -285,41 +324,45 @@ impl FlickApp {
                 });
                 ui.end_row();
 
-                ui.label("Thumbnails");
+                ui.label(t("Thumbnails"));
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
                         changed |= ui
-                            .radio_value(&mut g.strip_position, StripPosition::Bottom, "Bottom")
+                            .radio_value(&mut g.strip_position, StripPosition::Bottom, t("Bottom"))
                             .changed();
                         changed |= ui
-                            .radio_value(&mut g.strip_position, StripPosition::Top, "Top")
+                            .radio_value(&mut g.strip_position, StripPosition::Top, t("Top"))
                             .changed();
                     });
                     changed |= ui
                         .add(
                             egui::Slider::new(&mut g.thumbnail_size, MIN_THUMB..=MAX_THUMB)
-                                .text("size"),
+                                .text(t("size")),
                         )
                         .changed();
                 });
                 ui.end_row();
 
-                ui.label("Saving");
+                ui.label(t("Saving"));
                 changed |= ui
                     .checkbox(
                         &mut g.confirm_overwrite,
-                        "Ask before saving over the original",
+                        t("Ask before saving over the original"),
                     )
                     .changed();
                 ui.end_row();
             });
+        if language_changed {
+            crate::apply_language(&self.settings.general.language);
+            changed = true;
+        }
         if changed {
             self.mark_settings_dirty();
         }
     }
 
     fn settings_keys(&mut self, ui: &mut egui::Ui) {
-        ui.label("Navigation keys. Each action can have several bindings.");
+        ui.label(t("Navigation keys. Each action can have several bindings."));
         ui.add_space(6.0);
         let mut remove: Option<(Action, Binding)> = None;
         let mut start: Option<Action> = None;
@@ -329,24 +372,28 @@ impl FlickApp {
             .striped(true)
             .show(ui, |ui| {
                 for action in Action::NAVIGATION {
-                    ui.label(action.label());
+                    ui.label(t(action.label()));
                     ui.horizontal_wrapped(|ui| {
                         for binding in self.settings.bindings.bindings(action).to_vec() {
                             let chip = egui::Button::new(format!("{}  ×", binding.display(IS_MAC)))
                                 .corner_radius(10.0);
-                            if ui.add(chip).on_hover_text("Remove this binding").clicked() {
+                            if ui
+                                .add(chip)
+                                .on_hover_text(t("Remove this binding"))
+                                .clicked()
+                            {
                                 remove = Some((action, binding));
                             }
                         }
                         if self.recording == Some(action) {
                             ui.label(
-                                RichText::new(
+                                RichText::new(t(
                                     "Press a key, mouse button 4/5 or swipe… (Esc cancels)",
-                                )
+                                ))
                                 .color(Color32::from_rgb(120, 200, 255)),
                             );
                             ui.ctx().request_repaint();
-                        } else if ui.button("+").on_hover_text("Add a binding").clicked() {
+                        } else if ui.button("+").on_hover_text(t("Add a binding")).clicked() {
                             start = Some(action);
                         }
                     });
@@ -368,14 +415,13 @@ impl FlickApp {
         if let Some((action, binding, other)) = self.record_conflict.clone() {
             ui.add_space(4.0);
             egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.label(format!(
-                    "{} is already used for “{}”.",
-                    binding.display(IS_MAC),
-                    other.label()
+                ui.label(tf(
+                    "{0} is already used for “{1}”.",
+                    &[&binding.display(IS_MAC), &t(other.label())],
                 ));
                 ui.horizontal(|ui| {
                     if ui
-                        .button(format!("Use it for “{}” instead", action.label()))
+                        .button(tf("Use it for “{0}” instead", &[&t(action.label())]))
                         .clicked()
                     {
                         if self
@@ -388,7 +434,7 @@ impl FlickApp {
                         }
                         self.record_conflict = None;
                     }
-                    if ui.button("Keep as is").clicked() {
+                    if ui.button(t("Keep as is")).clicked() {
                         self.record_conflict = None;
                     }
                 });
@@ -400,36 +446,36 @@ impl FlickApp {
         let mut changed = false;
         let k = &mut self.settings.keys;
         changed |= ui
-            .checkbox(&mut k.bind_by_character, "Bind new keys by the character they type (instead of key position)")
-            .on_hover_text("Key position keeps the same physical keys working on QWERTY, AZERTY, JIS, … layouts.")
+            .checkbox(&mut k.bind_by_character, t("Bind new keys by the character they type (instead of key position)"))
+            .on_hover_text(t("Key position keeps the same physical keys working on QWERTY, AZERTY, JIS, … layouts."))
             .changed();
         changed |= ui
-            .checkbox(&mut k.key_repeat, "Holding a key flips continuously")
+            .checkbox(&mut k.key_repeat, t("Holding a key flips continuously"))
             .changed();
         ui.add_enabled_ui(k.key_repeat, |ui| {
             changed |= ui
-                .add(egui::Slider::new(&mut k.repeat_rate, 1.0..=60.0).text("images per second"))
+                .add(egui::Slider::new(&mut k.repeat_rate, 1.0..=60.0).text(t("images per second")))
                 .changed();
         });
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            if ui.button("Restore defaults").clicked() {
+            if ui.button(t("Restore defaults")).clicked() {
                 self.settings.bindings.restore_navigation_defaults(IS_MAC);
                 self.record_conflict = None;
                 changed = true;
             }
-            if ui.button("Export…").clicked() {
+            if ui.button(t("Export…")).clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_file_name("flickflock-keys.toml")
                     .add_filter("TOML", &["toml"])
                     .save_file()
                 {
                     if let Err(e) = std::fs::write(&path, self.settings.bindings.export_toml()) {
-                        self.record_message = Some(format!("Could not export: {e}"));
+                        self.record_message = Some(tf("Could not export: {0}", &[&e]));
                     }
                 }
             }
-            if ui.button("Import…").clicked() {
+            if ui.button(t("Import…")).clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("TOML", &["toml"])
                     .pick_file()
@@ -441,11 +487,11 @@ impl FlickApp {
                         Ok((bindings, warnings)) => {
                             self.settings.bindings = bindings;
                             self.record_message = (!warnings.is_empty()).then(|| {
-                                format!("Imported with {} ignored entr(y/ies).", warnings.len())
+                                tf("Imported with {0} ignored entries.", &[&warnings.len()])
                             });
                             changed = true;
                         }
-                        Err(e) => self.record_message = Some(format!("Could not import: {e}")),
+                        Err(e) => self.record_message = Some(tf("Could not import: {0}", &[&e])),
                     }
                 }
             }
@@ -459,31 +505,35 @@ impl FlickApp {
         let mut changed = false;
         let mut nav_changed = false;
         let f = &mut self.settings.folders;
-        ui.label("Next / previous folder moves through:");
+        ui.label(t("Next / previous folder moves through:"));
         nav_changed |= ui
-            .radio_value(&mut f.traverse_tree, false, "Sibling folders (same parent)")
+            .radio_value(
+                &mut f.traverse_tree,
+                false,
+                t("Sibling folders (same parent)"),
+            )
             .changed();
         nav_changed |= ui
             .radio_value(
                 &mut f.traverse_tree,
                 true,
-                "The whole folder tree, depth-first",
+                t("The whole folder tree, depth-first"),
             )
             .changed();
         ui.add_enabled_ui(f.traverse_tree, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Tree root:");
+                ui.label(t("Tree root:"));
                 match &f.tree_root {
                     Some(root) => ui.label(root.to_string_lossy()),
-                    None => ui.weak("parent of the first opened folder"),
+                    None => ui.weak(t("parent of the first opened folder")),
                 };
-                if ui.button("Choose…").clicked() {
+                if ui.button(t("Choose…")).clicked() {
                     if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                         f.tree_root = Some(dir);
                         nav_changed = true;
                     }
                 }
-                if f.tree_root.is_some() && ui.button("Reset").clicked() {
+                if f.tree_root.is_some() && ui.button(t("Reset")).clicked() {
                     f.tree_root = None;
                     nav_changed = true;
                 }
@@ -491,27 +541,31 @@ impl FlickApp {
         });
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            ui.label("Folder order:");
+            ui.label(t("Folder order:"));
             nav_changed |= ui
-                .radio_value(&mut f.sort, FolderSort::Name, "Name")
+                .radio_value(&mut f.sort, FolderSort::Name, t("Name"))
                 .changed();
             nav_changed |= ui
-                .radio_value(&mut f.sort, FolderSort::Date, "Date modified")
+                .radio_value(&mut f.sort, FolderSort::Date, t("Date modified"))
                 .changed();
         });
         ui.horizontal(|ui| {
-            ui.label("“Previous folder” opens its:");
+            ui.label(t("“Previous folder” opens its:"));
             changed |= ui
-                .radio_value(&mut f.prev_folder_entry, FolderEntry::First, "First image")
+                .radio_value(
+                    &mut f.prev_folder_entry,
+                    FolderEntry::First,
+                    t("First image"),
+                )
                 .changed();
             changed |= ui
-                .radio_value(&mut f.prev_folder_entry, FolderEntry::Last, "Last image")
+                .radio_value(&mut f.prev_folder_entry, FolderEntry::Last, t("Last image"))
                 .changed();
         });
         changed |= ui
             .checkbox(
                 &mut f.boundary_pause,
-                "Pause at folder boundaries (press again to continue)",
+                t("Pause at folder boundaries (press again to continue)"),
             )
             .changed();
         if nav_changed {
@@ -532,34 +586,35 @@ impl FlickApp {
             .add(
                 egui::Slider::new(&mut p.cache_mb, 64..=8192)
                     .logarithmic(true)
-                    .text("MB image cache"),
+                    .text(t("MB image cache")),
             )
             .changed();
         changed |= ui
-            .add(egui::Slider::new(&mut p.prefetch_ahead, 0..=8).text("images preloaded ahead"))
+            .add(egui::Slider::new(&mut p.prefetch_ahead, 0..=8).text(t("images preloaded ahead")))
             .changed();
         changed |= ui
-            .add(egui::Slider::new(&mut p.prefetch_behind, 0..=8).text("images preloaded behind"))
+            .add(
+                egui::Slider::new(&mut p.prefetch_behind, 0..=8).text(t("images preloaded behind")),
+            )
             .changed();
         ui.label(
-            RichText::new(format!(
-                "In use: {} MB in {} images",
-                self.cache.used() >> 20,
-                self.cache.len()
+            RichText::new(tf(
+                "In use: {0} MB in {1} images",
+                &[&(self.cache.used() >> 20), &self.cache.len()],
             ))
             .weak(),
         );
         ui.add_space(8.0);
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label("Thumbnail cache on disk");
-            if ui.button("Clear").clicked() {
+            ui.label(t("Thumbnail cache on disk"));
+            if ui.button(t("Clear")).clicked() {
                 if let Some(cache) = self.disk_cache.clone() {
                     self.spawn_bg(move || {
                         let freed = cache.clear();
-                        crate::app::BgEvent::Toast(format!(
-                            "Freed {}",
-                            ff_core::meta::human_size(freed)
+                        crate::app::BgEvent::Toast(tf(
+                            "Freed {0}",
+                            &[&ff_core::meta::human_size(freed)],
                         ))
                     });
                 }
@@ -580,18 +635,18 @@ impl FlickApp {
 
     fn settings_transitions(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
-        let t = &mut self.settings.transitions;
+        let tr = &mut self.settings.transitions;
         egui::Grid::new("ff-set-transitions")
             .num_columns(2)
             .spacing([16.0, 10.0])
             .show(ui, |ui| {
                 for (label, value, id) in [
-                    ("While browsing", &mut t.browse, "ff-tr-browse"),
-                    ("In slideshows", &mut t.slideshow, "ff-tr-show"),
+                    (t("While browsing"), &mut tr.browse, "ff-tr-browse"),
+                    (t("In slideshows"), &mut tr.slideshow, "ff-tr-show"),
                 ] {
                     ui.label(label);
                     egui::ComboBox::from_id_salt(id)
-                        .selected_text(transition_label(value))
+                        .selected_text(transition_label(value).to_owned())
                         .show_ui(ui, |ui| {
                             for name in TRANSITIONS {
                                 changed |= ui
@@ -605,26 +660,26 @@ impl FlickApp {
                         });
                     ui.end_row();
                 }
-                ui.label("Duration");
+                ui.label(t("Duration"));
                 changed |= ui
-                    .add(egui::Slider::new(&mut t.duration_ms, 50..=3000).suffix(" ms"))
+                    .add(egui::Slider::new(&mut tr.duration_ms, 50..=3000).suffix(" ms"))
                     .changed();
                 ui.end_row();
             });
         ui.add_space(8.0);
         ui.separator();
-        ui.strong("Slideshow");
+        ui.strong(t("Slideshow"));
         let s = &mut self.settings.slideshow;
         changed |= ui
             .add(
                 egui::Slider::new(&mut s.interval_secs, 0.5..=60.0)
                     .logarithmic(true)
                     .suffix(" s")
-                    .text("per image"),
+                    .text(t("per image")),
             )
             .changed();
-        changed |= ui.checkbox(&mut s.shuffle, "Shuffle").changed();
-        changed |= ui.checkbox(&mut s.looping, "Loop").changed();
+        changed |= ui.checkbox(&mut s.shuffle, t("Shuffle")).changed();
+        changed |= ui.checkbox(&mut s.looping, t("Loop")).changed();
         if changed {
             self.mark_settings_dirty();
         }
@@ -637,39 +692,45 @@ impl FlickApp {
             .num_columns(2)
             .spacing([16.0, 10.0])
             .show(ui, |ui| {
-                ui.label("Sort by");
+                ui.label(t("Sort by"));
                 egui::ComboBox::from_id_salt("ff-sort-key")
-                    .selected_text(s.key.label())
+                    .selected_text(t(s.key.label()))
                     .show_ui(ui, |ui| {
                         for key in SortKey::ALL {
-                            changed |= ui.selectable_value(&mut s.key, key, key.label()).changed();
+                            changed |= ui
+                                .selectable_value(&mut s.key, key, t(key.label()))
+                                .changed();
                         }
                     });
                 ui.end_row();
-                ui.label("Order");
+                ui.label(t("Order"));
                 ui.horizontal(|ui| {
                     changed |= ui
-                        .radio_value(&mut s.descending, false, "Ascending")
+                        .radio_value(&mut s.descending, false, t("Ascending"))
                         .changed();
                     changed |= ui
-                        .radio_value(&mut s.descending, true, "Descending")
+                        .radio_value(&mut s.descending, true, t("Descending"))
                         .changed();
                 });
                 ui.end_row();
                 for level in 0..2 {
-                    ui.label(if level == 0 { "Group by" } else { "Then by" });
+                    ui.label(if level == 0 {
+                        t("Group by")
+                    } else {
+                        t("Then by")
+                    });
                     let current = s.group_by.get(level).copied();
-                    let text = current.map(GroupKey::label).unwrap_or("None");
+                    let text = t(current.map(GroupKey::label).unwrap_or("None"));
                     let mut pick: Option<Option<GroupKey>> = None;
                     egui::ComboBox::from_id_salt(("ff-group", level))
                         .selected_text(text)
                         .show_ui(ui, |ui| {
-                            if ui.selectable_label(current.is_none(), "None").clicked() {
+                            if ui.selectable_label(current.is_none(), t("None")).clicked() {
                                 pick = Some(None);
                             }
                             for key in GroupKey::ALL {
                                 if ui
-                                    .selectable_label(current == Some(key), key.label())
+                                    .selectable_label(current == Some(key), t(key.label()))
                                     .clicked()
                                 {
                                     pick = Some(Some(key));
@@ -695,9 +756,9 @@ impl FlickApp {
                         break;
                     }
                 }
-                ui.label("Subfolders");
+                ui.label(t("Subfolders"));
                 changed |= ui
-                    .checkbox(&mut s.recursive, "Include images in subfolders")
+                    .checkbox(&mut s.recursive, t("Include images in subfolders"))
                     .changed();
                 ui.end_row();
             });
@@ -728,7 +789,7 @@ impl FlickApp {
             ui.set_min_width(320.0);
             match &mut modal {
                 Modal::Rename { text, focus } => {
-                    ui.heading("Rename");
+                    ui.heading(t("Rename"));
                     let edit = ui.add(egui::TextEdit::singleline(text).desired_width(300.0));
                     if std::mem::take(focus) {
                         edit.request_focus();
@@ -736,92 +797,95 @@ impl FlickApp {
                     let enter = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Rename").clicked() || enter {
+                        if ui.button(t("Rename")).clicked() || enter {
                             outcome = Outcome::Rename(text.clone());
                             keep = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t("Cancel")).clicked() {
                             keep = false;
                         }
                     });
                 }
                 Modal::ConfirmOverwrite => {
-                    ui.heading("Save over the original?");
-                    ui.label("The original file will be replaced. This cannot be undone.");
+                    ui.heading(t("Save over the original?"));
+                    ui.label(t(
+                        "The original file will be replaced. This cannot be undone.",
+                    ));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Save").clicked() {
+                        if ui.button(t("Save")).clicked() {
                             outcome = Outcome::Overwrite;
                             keep = false;
                         }
-                        if ui.button("Save As…").clicked() {
+                        if ui.button(t("Save as…")).clicked() {
                             outcome = Outcome::SaveAs(SaveFormat::Jpeg, 0);
                             keep = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t("Cancel")).clicked() {
                             keep = false;
                         }
                     });
                 }
                 Modal::Unsaved => {
-                    ui.heading("Unsaved changes");
-                    ui.label("This image has edits that are not saved yet.");
+                    ui.heading(t("Unsaved changes"));
+                    ui.label(t("This image has edits that are not saved yet."));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Save").clicked() {
+                        if ui.button(t("Save")).clicked() {
                             outcome = Outcome::SaveThenClose;
                             keep = false;
                         }
-                        if ui.button("Discard").clicked() {
+                        if ui.button(t("Discard")).clicked() {
                             outcome = Outcome::Discard;
                             keep = false;
                         }
-                        if ui.button("Keep editing").clicked() {
+                        if ui.button(t("Keep editing")).clicked() {
                             keep = false;
                         }
                     });
                 }
                 Modal::SaveAs { format, quality } => {
-                    ui.heading("Save As");
+                    ui.heading(t("Save As"));
                     egui::Grid::new("ff-saveas")
                         .num_columns(2)
                         .spacing([12.0, 8.0])
                         .show(ui, |ui| {
-                            ui.label("Format");
+                            ui.label(t("Format"));
                             egui::ComboBox::from_id_salt("ff-saveas-format")
-                                .selected_text(format.label())
+                                .selected_text(t(format.label()))
                                 .show_ui(ui, |ui| {
                                     for f in SaveFormat::ALL {
-                                        ui.selectable_value(format, f, f.label());
+                                        ui.selectable_value(format, f, t(f.label()));
                                     }
                                 });
                             ui.end_row();
                             if *format == SaveFormat::Jpeg {
-                                ui.label("JPEG quality");
+                                ui.label(t("JPEG quality"));
                                 ui.add(egui::Slider::new(quality, 1..=100));
                                 ui.end_row();
                             }
                         });
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Choose location…").clicked() {
+                        if ui.button(t("Choose location…")).clicked() {
                             outcome = Outcome::SaveAs(*format, *quality);
                             keep = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t("Cancel")).clicked() {
                             keep = false;
                         }
                     });
                 }
                 Modal::Extend { margins, color } => {
-                    ui.heading("Extend canvas");
-                    ui.label("Add borders around the image (pixels).");
+                    ui.heading(t("Extend canvas"));
+                    ui.label(t("Add borders around the image (pixels)."));
                     egui::Grid::new("ff-extend")
                         .num_columns(4)
                         .spacing([10.0, 8.0])
                         .show(ui, |ui| {
-                            for (i, label) in
-                                ["Left", "Top", "Right", "Bottom"].into_iter().enumerate()
+                            for (i, label) in [t("Left"), t("Top"), t("Right"), t("Bottom")]
+                                .into_iter()
+                                .enumerate()
                             {
                                 ui.label(label);
                                 ui.add(egui::DragValue::new(&mut margins[i]).range(0..=10_000));
@@ -830,17 +894,17 @@ impl FlickApp {
                                 }
                             }
                             ui.end_row();
-                            ui.label("Colour");
+                            ui.label(t("Color"));
                             ui.color_edit_button_srgb(color);
                             ui.end_row();
                         });
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Apply").clicked() {
+                        if ui.button(t("Apply")).clicked() {
                             outcome = Outcome::Extend(*margins, *color);
                             keep = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t("Cancel")).clicked() {
                             keep = false;
                         }
                     });
@@ -849,7 +913,7 @@ impl FlickApp {
                     ui.heading(title.as_str());
                     ui.label(body.as_str());
                     ui.add_space(8.0);
-                    if ui.button("OK").clicked() {
+                    if ui.button(t("OK")).clicked() {
                         keep = false;
                     }
                 }
@@ -895,9 +959,9 @@ impl FlickApp {
 
 fn background_label(b: Background) -> &'static str {
     match b {
-        Background::Black => "Black",
-        Background::DarkGray => "Dark gray",
-        Background::Checkerboard => "Checkerboard (for transparency)",
-        Background::System => "Follow system theme",
+        Background::Black => t("Black"),
+        Background::DarkGray => t("Dark gray"),
+        Background::Checkerboard => t("Checkerboard (for transparency)"),
+        Background::System => t("Follow system theme"),
     }
 }

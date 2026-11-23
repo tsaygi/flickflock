@@ -10,6 +10,7 @@ pub mod config;
 pub mod decode;
 pub mod edit;
 pub mod folder;
+pub mod i18n;
 pub mod input;
 pub mod jobs;
 pub mod loader;

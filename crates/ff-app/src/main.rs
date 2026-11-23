@@ -6,6 +6,7 @@
 mod app;
 mod browse;
 mod canvas;
+mod i18n_check;
 mod images;
 mod ipc;
 mod ops;
@@ -58,6 +59,12 @@ impl Decoder for OsCodec {
             })?;
         Ok(Decoded::still(format, image, self.name()))
     }
+}
+
+/// Activate the interface language for a `language` setting ("auto" or a code).
+pub(crate) fn apply_language(setting: &str) {
+    let os_locales: Vec<String> = sys_locale::get_locales().collect();
+    ff_core::i18n::set_language(ff_core::i18n::Lang::resolve(setting, &os_locales));
 }
 
 fn app_icon() -> Option<egui::IconData> {
@@ -126,6 +133,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => Settings::load(path, ff_core::IS_MAC),
         None => (Settings::default(), Vec::new()),
     };
+
+    apply_language(&settings.general.language);
 
     // Single instance: hand our paths to a running window and exit.
     let single = settings.general.single_window && !args.new_window;
