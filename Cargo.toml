@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/tsaygi/flickflock"
-rust-version = "1.88"
+rust-version = "1.95"
 
 [workspace.dependencies]
 ff-core = { path = "crates/ff-core" }

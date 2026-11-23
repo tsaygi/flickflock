@@ -29,7 +29,7 @@ JPEG, PNG/APNG, GIF, WebP, TIFF, BMP, ICO, TGA, PNM, QOI, OpenEXR, Radiance HDR,
 
 ## Install
 
-Pre-built packages are attached to CI runs and releases. To build from source you need a stable [Rust toolchain](https://rustup.rs):
+Pre-built packages are attached to CI runs and releases. To build from source you need a stable [Rust toolchain](https://rustup.rs), version 1.95 or newer (`rustup update stable`):
 
 ```sh
 cargo run --release -p flickflock -- path/to/photo.jpg
