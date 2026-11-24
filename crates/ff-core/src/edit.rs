@@ -326,7 +326,13 @@ fn write_atomic(dest: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut tmp_name = dest.file_name().unwrap_or_default().to_os_string();
     tmp_name.push(format!(".ff-tmp{}", std::process::id()));
     let tmp = dest.with_file_name(tmp_name);
-    std::fs::write(&tmp, bytes)?;
+    match std::fs::write(&tmp, bytes) {
+        // A sandboxed Save As grants only `dest`, not a sibling temp file.
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            return std::fs::write(dest, bytes);
+        }
+        result => result?,
+    }
     std::fs::rename(&tmp, dest).inspect_err(|_| {
         let _ = std::fs::remove_file(&tmp);
     })

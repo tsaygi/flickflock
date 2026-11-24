@@ -425,7 +425,11 @@ impl FlickApp {
         let Some(path) = self.current.clone() else {
             return;
         };
-        if let Err(e) = opener::reveal(&path) {
+        #[cfg(target_os = "macos")]
+        let result = ff_platform::reveal(&path);
+        #[cfg(not(target_os = "macos"))]
+        let result = opener::reveal(&path);
+        if let Err(e) = result {
             self.toast(tf("Cannot reveal file: {0}", &[&e]));
         }
     }
@@ -434,7 +438,11 @@ impl FlickApp {
         let Some(path) = self.current.clone() else {
             return;
         };
-        if let Err(e) = opener::open(&path) {
+        #[cfg(target_os = "macos")]
+        let result = ff_platform::open(&path);
+        #[cfg(not(target_os = "macos"))]
+        let result = opener::open(&path);
+        if let Err(e) = result {
             self.toast(tf("Cannot open file: {0}", &[&e]));
         }
     }
@@ -502,6 +510,7 @@ impl FlickApp {
             dialog = dialog.set_directory(&self.index.dir);
         }
         if let Some(path) = dialog.pick_folder() {
+            ff_platform::remember_folder(&path);
             self.open_path(&path);
         }
     }

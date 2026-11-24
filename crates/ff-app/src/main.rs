@@ -149,7 +149,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     apply_language(&settings.general.language);
 
     // Single instance: hand our paths to a running window and exit.
-    let single = settings.general.single_window && !args.new_window && args.slideshow.is_none();
+    // In the sandbox, LaunchServices already keeps one instance and paths sent over a socket would
+    // arrive without their access grant.
+    ff_platform::restore_folder_access();
+    let single = settings.general.single_window
+        && !args.new_window
+        && args.slideshow.is_none()
+        && !ff_platform::is_sandboxed();
     if single && ipc::send_to_running_instance(&args.paths) {
         return Ok(());
     }

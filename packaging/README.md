@@ -26,6 +26,14 @@ Builds are unsigned (ad-hoc signed on macOS), which is fine for personal use:
 
 For wider distribution use Developer ID signing + notarization on macOS and Authenticode on Windows.
 
+## Mac App Store
+
+`packaging/macos/mas.sh --local` builds a sandboxed, ad-hoc signed app in `dist/mas` for testing. For an upload, pass the App Store provisioning profile and a build number that increases with every upload:
+
+    MAS_PROFILE=path/to.provisionprofile BUILD_NUMBER=1 packaging/macos/mas.sh
+
+This needs a valid *Apple Distribution* and *3rd Party Mac Developer Installer* certificate. `vendor/winit` is winit 0.30.13 with its private macOS APIs removed, because App Review rejects them; re-apply that change when upgrading winit.
+
 ## Icons
 
 `assets/icon*.{png,ico,icns}` are generated, not drawn by hand:
