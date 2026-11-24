@@ -3,3 +3,10 @@
 .DS_Store
 *.dmg
 /dist
+
+# Signing material and store packages: personal to whoever builds them.
+*.provisionprofile
+*.mobileprovision
+*.p12
+*.cer
+*.pkg

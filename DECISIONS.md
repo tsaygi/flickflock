@@ -68,6 +68,7 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 
 ## Known limitations
 
+- **Mac App Store builds** ask once for folder access and keep it as a security-scoped bookmark, because the sandbox grants only the opened file. Declining still shows that file. Sibling-folder navigation needs access to the parent folder. The patched winit shows a plain arrow for diagonal-resize, help, zoom and wait cursors, and Ctrl-Tab / Ctrl-Esc no longer reach the app.
 - Windows (WIC) and Linux (libheif) HEIC decoding, the Windows/Linux installers and Wayland/X11 behaviour are type-checked and linted from macOS but have not been run on those systems yet; CI is the first place they run.
 - On Windows, HEIC orientation relies on the WIC codec applying the container's rotation, and wide-gamut HEICs are not converted to sRGB.
 - "Open with" opens the system default application; choosing another application is not implemented.

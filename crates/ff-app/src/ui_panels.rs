@@ -533,6 +533,7 @@ impl FlickApp {
                 };
                 if ui.button(t("Choose…")).clicked() {
                     if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                        ff_platform::remember_folder(&dir);
                         f.tree_root = Some(dir);
                         nav_changed = true;
                     }

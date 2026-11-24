@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["crates/ff-core", "crates/ff-platform", "crates/ff-app"]
+exclude = ["vendor/winit"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/tsaygi/flickflock"
@@ -29,6 +30,10 @@ unknown_lints = "allow"
 [workspace.lints.clippy]
 # `chunks_exact(4)` over pixel buffers reads better than `as_chunks` and keeps the MSRV lower.
 chunks_exact_to_as_chunks = "allow"
+
+# winit 0.30.13 without its private macOS APIs, which the Mac App Store rejects.
+[patch.crates-io]
+winit = { path = "vendor/winit" }
 
 [profile.release]
 lto = true

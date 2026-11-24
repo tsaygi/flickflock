@@ -43,6 +43,26 @@ impl FlickApp {
             self.toast(tf("Cannot open {0}", &[&path.display()]));
             return;
         };
+        // Sandboxed builds only get the opened item; browsing needs its folder. Declining still
+        // shows the file, just without its neighbours.
+        let dir = if md.is_dir() {
+            Some(path.as_path())
+        } else {
+            path.parent()
+        };
+        if let Some(dir) = dir {
+            let home = std::env::var_os("HOME").map(PathBuf::from);
+            let suggested = dir
+                .parent()
+                .filter(|p| p.parent().is_some() && Some(*p) != home.as_deref())
+                .unwrap_or(dir);
+            ff_platform::ensure_folder_access(
+                dir,
+                suggested,
+                t("To flick through your photos, FlickFlock needs access to this folder. Choose it once and FlickFlock will remember it."),
+                t("Grant Access"),
+            );
+        }
         self.slideshow = None;
         if md.is_dir() {
             self.nav_root = self
