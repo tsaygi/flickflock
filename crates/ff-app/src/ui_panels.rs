@@ -4,12 +4,14 @@ use crate::app::{FlickApp, Modal, SettingsTab};
 use crate::ui_strip::{MAX_THUMB, MIN_THUMB};
 use eframe::egui::{self, Color32, RichText};
 use ff_core::config::{Background, FolderEntry, ScrollMode, StripPosition, TRANSITIONS};
+use ff_core::decode::FILE_TYPE_GROUPS;
 use ff_core::edit::{EditOp, SaveFormat};
 use ff_core::folder::{GroupKey, SortKey};
 use ff_core::i18n::{t, tf, Lang};
 use ff_core::input::{Action, BindError, Binding, KeyBindings};
 use ff_core::nav::{EndOfFolder, FolderSort};
 use ff_core::IS_MAC;
+use std::time::{Duration, Instant};
 
 fn transition_label(name: &str) -> &str {
     match name {
@@ -173,6 +175,7 @@ impl FlickApp {
                         (SettingsTab::Performance, t("Performance")),
                         (SettingsTab::Transitions, t("Transitions")),
                         (SettingsTab::Sorting, t("Sorting")),
+                        (SettingsTab::FileTypes, t("File types")),
                     ] {
                         if ui
                             .selectable_label(self.settings_tab == tab, label)
@@ -193,6 +196,7 @@ impl FlickApp {
                         SettingsTab::Performance => self.settings_performance(ui),
                         SettingsTab::Transitions => self.settings_transitions(ui),
                         SettingsTab::Sorting => self.settings_sorting(ui),
+                        SettingsTab::FileTypes => self.settings_file_types(ui),
                     });
                 if let Some(path) = &self.settings_path {
                     ui.separator();
@@ -764,6 +768,140 @@ impl FlickApp {
             });
         if changed {
             self.resort();
+        }
+    }
+
+    /// Query (and optionally first change) the default-app status in the background.
+    /// `make_default` lists indexes into `FILE_TYPE_GROUPS` to claim first.
+    pub(crate) fn refresh_associations(&mut self, make_default: Vec<usize>) {
+        if self.assoc_busy {
+            return;
+        }
+        self.assoc_busy = true;
+        self.spawn_bg(move || {
+            let os = ff_platform::integration();
+            let mut error = None;
+            let mut claimed = Vec::new();
+            for i in &make_default {
+                let Some((_, extensions, mime)) = FILE_TYPE_GROUPS.get(*i) else {
+                    continue;
+                };
+                let mut ok = true;
+                for ext in extensions.iter() {
+                    if let Err(e) = os.set_default_for(ext, mime) {
+                        ok = false;
+                        error.get_or_insert(e.to_string());
+                    }
+                }
+                if ok {
+                    claimed.push(*i);
+                }
+            }
+            let status = FILE_TYPE_GROUPS
+                .iter()
+                .map(|(_, extensions, mime)| {
+                    // A type counts as ours when every one of its extensions opens here.
+                    extensions
+                        .iter()
+                        .map(|ext| os.is_default_for(ext, mime))
+                        .try_fold(true, |all, one| one.map(|d| all && d))
+                })
+                .collect();
+            crate::app::BgEvent::Associations {
+                status,
+                claimed,
+                error,
+            }
+        });
+    }
+
+    fn settings_file_types(&mut self, ui: &mut egui::Ui) {
+        use ff_platform::AssociationSupport;
+        match ff_platform::integration().association_support() {
+            AssociationSupport::PerType => {}
+            AssociationSupport::SystemSettings => {
+                ui.label(t(
+                    "On this system, default apps are chosen in the system settings.",
+                ));
+                ui.add_space(6.0);
+                if ui.button(t("Open system settings…")).clicked() {
+                    if let Err(e) = ff_platform::integration().open_default_apps_settings() {
+                        self.toast(tf("Could not change the default app: {0}", &[&e]));
+                    }
+                }
+                return;
+            }
+            AssociationSupport::NotInstalled => {
+                ui.label(t(
+                    "Install FlickFlock as an application to change file associations.",
+                ));
+                return;
+            }
+            AssociationSupport::Unavailable => {
+                ui.label(t("File associations are not available on this system."));
+                return;
+            }
+        }
+        if self.assoc_status.is_none() {
+            self.refresh_associations(Vec::new());
+        }
+        ui.label(t("Choose which image types open in FlickFlock by default."));
+        ui.add_space(6.0);
+        if self.assoc_recheck_at.is_some_and(|at| Instant::now() >= at) && !self.assoc_busy {
+            self.assoc_recheck_at = None;
+            self.refresh_associations(Vec::new());
+        } else if self.assoc_recheck_at.is_some() {
+            ui.ctx().request_repaint_after(Duration::from_millis(500));
+        }
+        let mut status = self.assoc_status.clone().unwrap_or_default();
+        for i in &self.assoc_claimed {
+            if let Some(slot) = status.get_mut(*i) {
+                *slot = Some(true);
+            }
+        }
+        let busy = self.assoc_busy;
+        let mut claim: Vec<usize> = Vec::new();
+        ui.add_enabled_ui(!busy, |ui| {
+            let all_ours = !status.is_empty() && status.iter().all(|s| *s == Some(true));
+            if ui
+                .add_enabled(!all_ours, egui::Button::new(t("Make default for all")))
+                .clicked()
+            {
+                claim = (0..FILE_TYPE_GROUPS.len()).collect();
+            }
+            ui.add_space(6.0);
+            egui::Grid::new("ff-set-filetypes")
+                .num_columns(3)
+                .spacing([16.0, 6.0])
+                .striped(true)
+                .show(ui, |ui| {
+                    for (i, (name, extensions, _)) in FILE_TYPE_GROUPS.iter().enumerate() {
+                        ui.label(*name);
+                        let list: Vec<String> =
+                            extensions.iter().take(6).map(|e| format!(".{e}")).collect();
+                        let more = if extensions.len() > 6 { " …" } else { "" };
+                        ui.label(
+                            RichText::new(format!("{}{more}", list.join(" ")))
+                                .weak()
+                                .small(),
+                        );
+                        if status.get(i).copied().flatten() == Some(true) {
+                            ui.label(
+                                RichText::new(format!("✔ {}", t("Opens in FlickFlock")))
+                                    .color(Color32::from_rgb(60, 160, 90)),
+                            );
+                        } else if ui.button(t("Make default")).clicked() {
+                            claim.push(i);
+                        }
+                        ui.end_row();
+                    }
+                });
+        });
+        if busy {
+            ui.add(egui::Spinner::new());
+        }
+        if !claim.is_empty() {
+            self.refresh_associations(claim);
         }
     }
 

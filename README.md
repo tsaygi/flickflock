@@ -21,6 +21,7 @@ Open a photo, then flick through every photo in that folder — and on into the 
 - **History** – browser-style Back / Forward.
 - **Slideshow** – interval, shuffle, loop and ten GPU transitions (crossfade, slide, push, zoom, wipe, iris, page curl, ripple, pixelate, dissolve).
 - **Quick edits** – rotate, flip, crop with aspect presets, extend canvas; undo/redo; Save / Save As with EXIF kept; lossless JPEG rotation.
+- **File associations** – choose under Settings ▸ File types which image types open in FlickFlock by default.
 - **File operations** – move to Trash, rename, reveal in the file manager, copy image or path; the folder is watched and updates live.
 
 ### Languages

@@ -48,6 +48,14 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 - Not translated: key names in shortcuts, EXIF/XMP tag names, error details produced by decoding libraries and the operating system, and log output.
 - The language follows the OS (`sys-locale`) unless set in Settings; it switches immediately, without a restart.
 
+## File associations
+
+- **Settings ▸ File types** lists every format group and lets the user make FlickFlock the default app per type or for all of them. Becoming the default is always the user's explicit choice; installing only registers FlickFlock as a viewer.
+- **macOS** uses Launch Services (`LSSetDefaultRoleHandlerForContentType`, via plain C bindings). The OS applies a change a few seconds after the call returns, so the tab shows the new state at once and re-checks eight seconds later. It only works from an app bundle (a bundle identifier is required).
+- **Linux** uses `xdg-mime` with the installed `flickflock.desktop` entry.
+- **Windows** protects the per-user default-app choice, so applications cannot change it; the tab explains this and opens *Settings ▸ Apps ▸ Default apps*.
+- There is no "remove as default": the OS has no notion of an unset default, so the user picks another app in the system's own UI.
+
 ## Decoding
 
 - **Format detection reads magic bytes**; the extension only disambiguates containers (TIFF-based RAW) and formats without a signature (TGA). Folder *indexing* goes by extension so a 2,000-file folder on a network share is not opened file by file.

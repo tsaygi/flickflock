@@ -13,6 +13,9 @@
 
 use std::path::{Path, PathBuf};
 
+mod associations;
+pub use associations::AssociationSupport;
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
@@ -102,6 +105,28 @@ pub trait PlatformIntegration: Send + Sync {
     ///
     /// No-op on other OSes.
     fn install_open_handler(&self, callback: Box<dyn Fn(Vec<PathBuf>) + Send + Sync + 'static>);
+
+    /// What this OS lets the app do about "default app" file associations.
+    fn association_support(&self) -> AssociationSupport {
+        associations::support()
+    }
+
+    /// Is this app the default for files with `extension` (MIME type `mime`)?
+    /// `None` when the OS cannot tell. May block briefly; call off the UI thread.
+    fn is_default_for(&self, extension: &str, mime: &str) -> Option<bool> {
+        associations::is_default(extension, mime)
+    }
+
+    /// Make this app the default for files with `extension` (MIME type `mime`).
+    fn set_default_for(&self, extension: &str, mime: &str) -> Result<(), PlatformError> {
+        associations::set_default(extension, mime)
+    }
+
+    /// Open the OS page where the user chooses default apps
+    /// (only meaningful for [`AssociationSupport::SystemSettings`]).
+    fn open_default_apps_settings(&self) -> Result<(), PlatformError> {
+        associations::open_settings()
+    }
 }
 
 /// The shell integration for the OS this binary was built for.

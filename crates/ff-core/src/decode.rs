@@ -92,6 +92,41 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "raf", "orf", "dng", "rw2", "pef", "srw",
 ];
 
+/// File types as shown to the user when choosing default-app associations:
+/// `(name, extensions, MIME type)`. Together they cover [`SUPPORTED_EXTENSIONS`].
+pub const FILE_TYPE_GROUPS: &[(&str, &[&str], &str)] = &[
+    ("JPEG", &["jpg", "jpeg", "jpe", "jfif"], "image/jpeg"),
+    ("PNG", &["png", "apng"], "image/png"),
+    ("GIF", &["gif"], "image/gif"),
+    ("WebP", &["webp"], "image/webp"),
+    ("HEIF / HEIC", &["heic", "heif", "hif"], "image/heic"),
+    ("AVIF", &["avif"], "image/avif"),
+    ("JPEG XL", &["jxl"], "image/jxl"),
+    ("TIFF", &["tif", "tiff"], "image/tiff"),
+    ("BMP", &["bmp", "dib"], "image/bmp"),
+    ("ICO", &["ico", "cur"], "image/vnd.microsoft.icon"),
+    ("TGA", &["tga"], "image/x-tga"),
+    ("PSD", &["psd"], "image/vnd.adobe.photoshop"),
+    (
+        "Camera RAW",
+        &[
+            "cr2", "cr3", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf", "dng", "rw2", "pef",
+            "srw",
+        ],
+        "image/x-dcraw",
+    ),
+    ("OpenEXR", &["exr"], "image/x-exr"),
+    ("Radiance HDR", &["hdr"], "image/vnd.radiance"),
+    (
+        "Netpbm",
+        &["pbm", "pgm", "ppm", "pnm", "pam"],
+        "image/x-portable-anymap",
+    ),
+    ("QOI", &["qoi"], "image/qoi"),
+    ("DDS", &["dds"], "image/x-dds"),
+    ("Farbfeld", &["ff", "farbfeld"], "image/x-farbfeld"),
+];
+
 /// Is this path indexed as an image (by extension, which is cheap enough for
 /// big folders on network shares)? Actual decoding detects by content.
 pub fn is_supported_path(path: &Path) -> bool {
@@ -976,6 +1011,21 @@ mod tests {
             Decoders::builtin().decode(&p, &DecodeOptions::default()),
             Err(DecodeError::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn type_groups_cover_every_supported_extension_once() {
+        let mut grouped: Vec<&str> = FILE_TYPE_GROUPS
+            .iter()
+            .flat_map(|(_, exts, _)| exts.iter().copied())
+            .collect();
+        grouped.sort_unstable();
+        let mut supported = SUPPORTED_EXTENSIONS.to_vec();
+        supported.sort_unstable();
+        assert_eq!(grouped, supported);
+        assert!(FILE_TYPE_GROUPS
+            .iter()
+            .all(|(name, _, mime)| !name.is_empty() && mime.starts_with("image/")));
     }
 
     #[test]

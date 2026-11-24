@@ -143,6 +143,12 @@ pub(crate) enum BgEvent {
     },
     Edit(EditEvent),
     Toast(String),
+    /// Default-app status per entry of `FILE_TYPE_GROUPS`, plus an error to show.
+    Associations {
+        status: Vec<Option<bool>>,
+        claimed: Vec<usize>,
+        error: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +202,7 @@ pub(crate) enum SettingsTab {
     Performance,
     Transitions,
     Sorting,
+    FileTypes,
 }
 
 pub(crate) struct Toast {
@@ -272,6 +279,12 @@ pub struct FlickApp {
     pub(crate) modal: Option<Modal>,
     pub(crate) meta: Option<(PathBuf, Arc<Vec<Property>>)>,
     pub(crate) meta_pending: Option<PathBuf>,
+    /// Default-app status per file type (`None` until queried).
+    pub(crate) assoc_status: Option<Vec<Option<bool>>>,
+    pub(crate) assoc_busy: bool,
+    /// Types just claimed, shown as ours until the OS has caught up.
+    pub(crate) assoc_claimed: Vec<usize>,
+    pub(crate) assoc_recheck_at: Option<Instant>,
     pub(crate) fullscreen: bool,
     pub(crate) title: String,
     pub(crate) rng: u64,
@@ -392,6 +405,10 @@ impl FlickApp {
             modal: None,
             meta: None,
             meta_pending: None,
+            assoc_status: None,
+            assoc_busy: false,
+            assoc_claimed: Vec::new(),
+            assoc_recheck_at: None,
             title: String::new(),
             selftest: crate::selftest::SelfTest::from_env(),
             rng: std::time::SystemTime::now()
@@ -495,6 +512,25 @@ impl FlickApp {
                 }
                 BgEvent::Edit(ev) => self.on_edit_event(ev),
                 BgEvent::Toast(text) => self.toast(text),
+                BgEvent::Associations {
+                    status,
+                    claimed,
+                    error,
+                } => {
+                    self.assoc_status = Some(status);
+                    self.assoc_busy = false;
+                    if !claimed.is_empty() {
+                        // The OS applies a new default a few seconds later: show it
+                        // right away and verify afterwards.
+                        self.assoc_claimed = claimed;
+                        self.assoc_recheck_at = Some(Instant::now() + Duration::from_secs(8));
+                    } else if self.assoc_recheck_at.is_none() {
+                        self.assoc_claimed.clear();
+                    }
+                    if let Some(error) = error {
+                        self.toast(tf("Could not change the default app: {0}", &[&error]));
+                    }
+                }
             }
         }
         self.poll_loader();

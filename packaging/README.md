@@ -11,7 +11,7 @@ The cargo-packager and cargo-generate-rpm settings live in `crates/ff-app/Cargo.
 
 ## File associations
 
-FlickFlock registers as a *viewer* (never as the forced default) for every format it can open:
+FlickFlock registers as a *viewer* (never as the forced default) for every format it can open. The easiest way to make it the default is **Settings ▸ File types** inside the app (per type, or all at once; on Windows it opens the system's Default apps page). The manual routes:
 
 - **macOS** – `CFBundleDocumentTypes` in `packaging/macos/Info.plist`. Pick FlickFlock under *Get Info ▸ Open with ▸ Change All…*.
 - **Windows** – the installers write the ProgID / "Open with" entries from `file-associations`. Choose FlickFlock under *Settings ▸ Apps ▸ Default apps*.
