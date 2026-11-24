@@ -82,25 +82,37 @@ fn app_icon() -> Option<egui::IconData> {
 struct Args {
     paths: Vec<PathBuf>,
     new_window: bool,
+    /// `--slideshow[=SECONDS]`: start a slideshow, optionally with this interval.
+    slideshow: Option<Option<f32>>,
 }
 
 fn parse_args() -> Option<Args> {
     let mut args = Args {
         paths: Vec::new(),
         new_window: false,
+        slideshow: None,
     };
     let mut only_paths = false;
     for arg in std::env::args_os().skip(1) {
         match arg.to_str() {
             Some("--") if !only_paths => only_paths = true,
             Some("--new-window" | "-n") if !only_paths => args.new_window = true,
+            Some("--slideshow" | "-s") if !only_paths => args.slideshow = Some(None),
+            Some(s) if !only_paths && s.starts_with("--slideshow=") => {
+                args.slideshow = Some(
+                    s["--slideshow=".len()..]
+                        .parse()
+                        .ok()
+                        .filter(|v: &f32| v.is_finite() && *v > 0.0),
+                );
+            }
             Some("--version" | "-V") if !only_paths => {
                 println!("flickflock {}", env!("CARGO_PKG_VERSION"));
                 return None;
             }
             Some("--help" | "-h") if !only_paths => {
                 println!(
-                    "FlickFlock {} — a fast image viewer\n\nUsage: flickflock [OPTIONS] [FILE or FOLDER]...\n\nOptions:\n  -n, --new-window  Open a new window even if FlickFlock is already running\n  -V, --version     Print the version\n  -h, --help        Print this help",
+                    "FlickFlock {} — a fast image viewer\n\nUsage: flickflock [OPTIONS] [FILE or FOLDER]...\n\nOptions:\n  -n, --new-window  Open a new window even if FlickFlock is already running\n  -s, --slideshow[=SECONDS]\n                    Start a slideshow, optionally with SECONDS per image\n  -V, --version     Print the version\n  -h, --help        Print this help",
                     env!("CARGO_PKG_VERSION")
                 );
                 return None;
@@ -137,7 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     apply_language(&settings.general.language);
 
     // Single instance: hand our paths to a running window and exit.
-    let single = settings.general.single_window && !args.new_window;
+    let single = settings.general.single_window && !args.new_window && args.slideshow.is_none();
     if single && ipc::send_to_running_instance(&args.paths) {
         return Ok(());
     }
@@ -189,6 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         settings_warnings,
         decoders,
         initial: args.paths,
+        slideshow: args.slideshow,
         inbox,
         waker,
     };

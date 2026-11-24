@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "请将 FlickFlock 安装为应用程序后再更改文件关联。"
 "File associations are not available on this system." = "此系统不支持文件关联。"
 "Could not change the default app: {0}" = "无法更改默认应用：{0}"
+"Pause" = "暂停"
+"Resume" = "继续"

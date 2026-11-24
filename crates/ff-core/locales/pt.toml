@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "Instale o FlickFlock como aplicativo para alterar as associações de arquivos."
 "File associations are not available on this system." = "As associações de arquivos não estão disponíveis neste sistema."
 "Could not change the default app: {0}" = "Não foi possível alterar o app padrão: {0}"
+"Pause" = "Pausar"
+"Resume" = "Retomar"

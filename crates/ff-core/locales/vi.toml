@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "Hãy cài FlickFlock như một ứng dụng để thay đổi liên kết tệp."
 "File associations are not available on this system." = "Liên kết tệp không khả dụng trên hệ thống này."
 "Could not change the default app: {0}" = "Không thể đổi ứng dụng mặc định: {0}"
+"Pause" = "Tạm dừng"
+"Resume" = "Tiếp tục"

@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "Чтобы менять привязки файлов, установите FlickFlock как приложение."
 "File associations are not available on this system." = "Привязки файлов недоступны в этой системе."
 "Could not change the default app: {0}" = "Не удалось изменить приложение по умолчанию: {0}"
+"Pause" = "Пауза"
+"Resume" = "Продолжить"

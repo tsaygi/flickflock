@@ -19,7 +19,7 @@ Open a photo, then flick through every photo in that folder — and on into the 
 - **Metadata** – EXIF, GPS, XMP and file facts in a side panel; pin any property onto the image.
 - **Sorting and grouping** – natural name order (`img2` before `img10`), dates, size, dimensions, type; nested grouping.
 - **History** – browser-style Back / Forward.
-- **Slideshow** – interval, shuffle, loop and ten GPU transitions (crossfade, slide, push, zoom, wipe, iris, page curl, ripple, pixelate, dissolve).
+- **Slideshow** – start it for the current folder (or with `--slideshow=5 <folder>`); set the seconds per image, pause, shuffle and loop from the HUD, and keep using left/right to skip ahead or go back without stopping it. Ten GPU transitions (crossfade, slide, push, zoom, wipe, iris, page curl, ripple, pixelate, dissolve).
 - **Quick edits** – rotate, flip, crop with aspect presets, extend canvas; undo/redo; Save / Save As with EXIF kept; lossless JPEG rotation.
 - **File associations** – choose under Settings ▸ File types which image types open in FlickFlock by default.
 - **File operations** – move to Trash, rename, reveal in the file manager, copy image or path; the folder is watched and updates live.
@@ -58,6 +58,8 @@ See [packaging/README.md](packaging/README.md) for installers, file associations
 flickflock [OPTIONS] [FILE or FOLDER]...
 
   -n, --new-window  Open a new window even if FlickFlock is already running
+  -s, --slideshow[=SECONDS]
+                    Start a slideshow, optionally with SECONDS per image
 ```
 
 Drop a file or folder on the window, or use **Open…**. By default a second launch hands its file to the window that is already open.
@@ -85,7 +87,7 @@ Drop a file or folder on the window, or use **Open…**. By default a second lau
 | Move to Trash | Mod+Backspace (macOS), Delete (Windows/Linux) |
 | Rename / reveal | F2 / Mod+Shift+R |
 | Copy image / path | Mod+C / Mod+Shift+C |
-| Slideshow | Mod+Shift+S |
+| Slideshow (P pauses, ←/→ skip, Esc stops) | Mod+Shift+S |
 | Settings | Mod+, |
 
 Navigation keys are edited in **Settings ▸ Keys**. Every other shortcut can be changed in the config file.

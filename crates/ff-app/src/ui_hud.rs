@@ -264,6 +264,10 @@ impl FlickApp {
                         hud_frame().show(ui, |ui| self.animation_controls(ui));
                         ui.add_space(6.0);
                     }
+                    if self.slideshow.is_some() {
+                        hud_frame().show(ui, |ui| self.slideshow_controls(ui));
+                        ui.add_space(6.0);
+                    }
                     hud_frame().show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
@@ -338,6 +342,71 @@ impl FlickApp {
         };
         if ui.add_enabled(enabled, button).on_hover_text(tip).clicked() {
             self.perform(action);
+        }
+    }
+
+    /// Pause/resume, seconds per image, shuffle, loop and stop.
+    fn slideshow_controls(&mut self, ui: &mut egui::Ui) {
+        let Some(paused) = self.slideshow.as_ref().map(|s| s.paused) else {
+            return;
+        };
+        let white = Color32::from_gray(235);
+        let on = Color32::from_rgb(120, 200, 255);
+        let icon = |text: &str, color: Color32| {
+            egui::Button::new(RichText::new(text).size(15.0).color(color)).frame(false)
+        };
+        let mut toggle_pause = false;
+        let mut stop = false;
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
+            let (glyph, tip) = if paused {
+                ("▶", t("Resume"))
+            } else {
+                ("⏸", t("Pause"))
+            };
+            toggle_pause = ui.add(icon(glyph, white)).on_hover_text(tip).clicked();
+            let s = &mut self.settings.slideshow;
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut s.interval_secs)
+                        .range(0.5..=3600.0)
+                        .speed(0.1)
+                        .max_decimals(1)
+                        .suffix(" s"),
+                )
+                .changed();
+            ui.label(RichText::new(t("per image")).color(white));
+            if ui
+                .add(icon("🔀", if s.shuffle { on } else { white }))
+                .on_hover_text(t("Shuffle"))
+                .clicked()
+            {
+                s.shuffle = !s.shuffle;
+                changed = true;
+            }
+            if ui
+                .add(icon("🔁", if s.looping { on } else { white }))
+                .on_hover_text(t("Loop"))
+                .clicked()
+            {
+                s.looping = !s.looping;
+                changed = true;
+            }
+            stop = ui.add(icon("⏹", white)).on_hover_text(t("Stop")).clicked();
+        });
+        if changed {
+            if let Some(show) = &mut self.slideshow {
+                show.queue.clear();
+            }
+            self.restart_slideshow_timer();
+            self.mark_settings_dirty();
+        }
+        if toggle_pause {
+            self.toggle_slideshow_pause();
+        }
+        if stop {
+            self.stop_slideshow();
         }
     }
 

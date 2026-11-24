@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "Instal FlickFlock sebagai aplikasi untuk mengubah asosiasi file."
 "File associations are not available on this system." = "Asosiasi file tidak tersedia di sistem ini."
 "Could not change the default app: {0}" = "Tidak dapat mengubah app default: {0}"
+"Pause" = "Jeda"
+"Resume" = "Lanjutkan"

@@ -469,6 +469,7 @@ impl FlickApp {
         }
         self.current = Some(path);
         self.current_since = Instant::now();
+        self.restart_slideshow_timer();
         self.strip_scroll_to = true;
         self.ctx.request_repaint();
     }

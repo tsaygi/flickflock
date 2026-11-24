@@ -65,6 +65,8 @@ pub(crate) struct SkimState {
 
 pub(crate) struct SlideshowState {
     pub next_at: Instant,
+    /// The countdown is suspended (the image stays until resumed).
+    pub paused: bool,
     /// Shuffled order of indexes still to show (shuffle mode).
     pub queue: Vec<usize>,
 }
@@ -274,6 +276,8 @@ pub struct FlickApp {
     pub(crate) over_strip: bool,
     pub(crate) strip_scroll_to: bool,
     pub(crate) slideshow: Option<SlideshowState>,
+    /// A slideshow was requested on the command line and starts with the first image.
+    pub(crate) slideshow_requested: bool,
     pub(crate) edit: Option<EditState>,
     pub(crate) crop: Option<CropState>,
     pub(crate) modal: Option<Modal>,
@@ -298,6 +302,8 @@ pub struct Startup {
     pub settings_warnings: Vec<String>,
     pub decoders: Decoders,
     pub initial: Vec<PathBuf>,
+    /// Start a slideshow once the first image is known (`Some(Some(secs))` sets the interval).
+    pub slideshow: Option<Option<f32>>,
     pub inbox: Receiver<Vec<PathBuf>>,
     /// Filled with the egui context so background threads can wake the UI.
     pub waker: Arc<std::sync::OnceLock<egui::Context>>,
@@ -400,6 +406,7 @@ impl FlickApp {
             over_strip: false,
             strip_scroll_to: false,
             slideshow: None,
+            slideshow_requested: startup.slideshow.is_some(),
             edit: None,
             crop: None,
             modal: None,
@@ -425,6 +432,9 @@ impl FlickApp {
                 "Config file: {0} setting(s) were invalid and reset to defaults",
                 &[&app.settings_warnings.len()],
             ));
+        }
+        if let Some(Some(seconds)) = startup.slideshow {
+            app.settings.slideshow.interval_secs = seconds.clamp(0.2, 3600.0);
         }
         if let Some(first) = startup.initial.first() {
             app.open_path(first);
@@ -555,14 +565,34 @@ impl FlickApp {
             let interval = Duration::from_secs_f32(self.settings.slideshow.interval_secs);
             self.slideshow = Some(SlideshowState {
                 next_at: Instant::now() + interval,
+                paused: false,
                 queue: Vec::new(),
             });
             self.toast(t("Slideshow started — Esc to stop"));
         }
     }
 
+    /// Restart the countdown: called whenever the image changes, so stepping
+    /// with the arrow keys during a slideshow gives each image its full time.
+    pub(crate) fn restart_slideshow_timer(&mut self) {
+        let interval = Duration::from_secs_f32(self.settings.slideshow.interval_secs);
+        if let Some(show) = &mut self.slideshow {
+            show.next_at = Instant::now() + interval;
+        }
+    }
+
+    pub(crate) fn toggle_slideshow_pause(&mut self) {
+        if let Some(show) = &mut self.slideshow {
+            show.paused = !show.paused;
+        }
+        self.restart_slideshow_timer();
+    }
+
     fn tick_slideshow(&mut self) {
         let Some(show) = &self.slideshow else { return };
+        if show.paused {
+            return;
+        }
         let now = Instant::now();
         if now < show.next_at {
             self.ctx.request_repaint_after(show.next_at - now);
@@ -713,6 +743,10 @@ impl FlickApp {
             HistoryForward => self.history_move(true),
             Skim => {}
             PlayPause => {
+                // Without an animation on screen, P pauses/resumes a running slideshow.
+                if self.anim.is_none() {
+                    self.toggle_slideshow_pause();
+                }
                 if let Some(a) = &mut self.anim {
                     a.player.playing = !a.player.playing;
                     a.last_tick = Instant::now();
@@ -845,6 +879,12 @@ impl eframe::App for FlickApp {
         let hud_visible = (in_window || scripted)
             && (self.last_activity.elapsed() < HUD_TIMEOUT || self.hud_hovered);
 
+        if self.slideshow_requested && self.current.is_some() {
+            self.slideshow_requested = false;
+            if self.slideshow.is_none() {
+                self.toggle_slideshow();
+            }
+        }
         self.tick_slideshow();
         self.tick_animation();
 

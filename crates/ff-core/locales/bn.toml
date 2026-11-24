@@ -244,3 +244,5 @@
 "Install FlickFlock as an application to change file associations." = "ফাইল অ্যাসোসিয়েশন পরিবর্তন করতে FlickFlock-কে অ্যাপ্লিকেশন হিসেবে ইনস্টল করুন।"
 "File associations are not available on this system." = "এই সিস্টেমে ফাইল অ্যাসোসিয়েশন উপলব্ধ নেই।"
 "Could not change the default app: {0}" = "ডিফল্ট অ্যাপ পরিবর্তন করা যায়নি: {0}"
+"Pause" = "বিরতি"
+"Resume" = "আবার চালু করুন"
