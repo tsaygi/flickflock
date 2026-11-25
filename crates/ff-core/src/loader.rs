@@ -2,7 +2,7 @@
 //! GPU-sized tiles with mip chains, all off the UI thread and cancellable.
 
 use crate::anim::{AnimatedImage, DEFAULT_RAW_FRAME_BUDGET};
-use crate::decode::{DecodeOptions, Decoders, Format};
+use crate::decode::{DecodeError, DecodeOptions, Decoders, Format};
 use crate::jobs::{CancelToken, JobQueue};
 use crossbeam_channel::{Receiver, Sender};
 use image::RgbaImage;
@@ -250,6 +250,9 @@ pub enum LoadEvent {
         path: PathBuf,
         level: Level,
         error: String,
+        /// The OS refused to read the file (sandbox or privacy settings), as opposed to a
+        /// missing or undecodable file.
+        denied: bool,
     },
 }
 
@@ -262,11 +265,12 @@ pub fn load(
     cancel: &CancelToken,
 ) -> Option<LoadEvent> {
     let started = std::time::Instant::now();
-    let fail = |error: String| {
+    let fail = |error: String, denied: bool| {
         Some(LoadEvent::Failed {
             path: path.to_path_buf(),
             level,
             error,
+            denied,
         })
     };
     if cancel.is_cancelled() {
@@ -278,7 +282,10 @@ pub fn load(
     };
     let decoded = match decoders.decode(path, &opts) {
         Ok(d) => d,
-        Err(e) => return fail(e.to_string()),
+        Err(e) => {
+            let denied = matches!(&e, DecodeError::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied);
+            return fail(e.to_string(), denied);
+        }
     };
     if cancel.is_cancelled() {
         return None;
@@ -524,6 +531,35 @@ mod tests {
             &CancelToken::default(),
         );
         assert!(matches!(ev, Some(LoadEvent::Failed { .. })));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_file_is_reported_as_denied() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let p = write_png(tmp.path(), "locked.png", 10, 10);
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o000)).unwrap();
+        if std::fs::File::open(&p).is_ok() {
+            return; // running as root: nothing is unreadable
+        }
+        let ev = load(
+            &p,
+            Level::Preview,
+            &JOB,
+            &Decoders::builtin(),
+            &CancelToken::default(),
+        );
+        assert!(matches!(ev, Some(LoadEvent::Failed { denied: true, .. })));
+        let missing = tmp.path().join("missing.png");
+        let ev = load(
+            &missing,
+            Level::Preview,
+            &JOB,
+            &Decoders::builtin(),
+            &CancelToken::default(),
+        );
+        assert!(matches!(ev, Some(LoadEvent::Failed { denied: false, .. })));
     }
 
     #[test]

@@ -134,6 +134,39 @@ impl FlickApp {
             self.watch_dirty_since = Some(Instant::now());
             self.ctx.request_repaint();
         }
+        if granted {
+            // Images that were refused before load normally now.
+            let refused: Vec<PathBuf> = self
+                .errors
+                .keys()
+                .filter(|p| p.starts_with(dir))
+                .cloned()
+                .collect();
+            for path in refused {
+                self.invalidate(&path);
+            }
+            self.ctx.request_repaint();
+        }
+    }
+
+    /// The OS refused to read `path` although its folder can be listed (a protected or
+    /// iCloud folder such as Documents, or a sandbox without a grant for it). Picking the
+    /// folder in the system dialog makes its files readable, so offer that once per folder.
+    pub(crate) fn offer_folder_access(&mut self, path: &Path) {
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        if dir != self.index.dir
+            || !ff_platform::can_request_folder_access()
+            || self.modal.is_some()
+            || self.access_offered.iter().any(|d| d == dir)
+        {
+            return;
+        }
+        self.access_offered.push(dir.to_path_buf());
+        self.modal = Some(crate::app::Modal::FolderAccess {
+            dir: dir.to_path_buf(),
+        });
     }
 
     /// Show a file, switching folders when necessary.

@@ -241,8 +241,16 @@ impl FlickApp {
                         }
                     }
                 }
-                LoadEvent::Failed { path, level, error } => {
+                LoadEvent::Failed {
+                    path,
+                    level,
+                    error,
+                    denied,
+                } => {
                     tracing::debug!("{}: {level:?} failed: {error}", path.display());
+                    if denied {
+                        self.offer_folder_access(&path);
+                    }
                     match level {
                         Level::Preview => {
                             self.errors.insert(path, error);

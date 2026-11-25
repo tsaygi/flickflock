@@ -4,7 +4,7 @@ members = ["crates/ff-core", "crates/ff-platform", "crates/ff-app"]
 exclude = ["vendor/winit"]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/tsaygi/flickflock"
