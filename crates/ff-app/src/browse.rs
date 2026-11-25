@@ -109,6 +109,22 @@ impl FlickApp {
         }
     }
 
+    /// The user agreed to pick `dir` in the system dialog after the OS refused to list it.
+    pub(crate) fn grant_folder_access(&mut self, dir: &Path) {
+        let granted = ff_platform::request_folder_access(
+            dir,
+            dir,
+            t("To flick through your photos, FlickFlock needs access to this folder. Choose it once and FlickFlock will remember it."),
+            t("Grant Access"),
+        );
+        if granted && dir == self.index.dir {
+            // Read it again right away, with a fresh retry budget but no second toast.
+            self.scan_failures = 1;
+            self.watch_dirty_since = Some(Instant::now());
+            self.ctx.request_repaint();
+        }
+    }
+
     /// Show a file, switching folders when necessary.
     pub(crate) fn show_file(&mut self, path: &Path, record: Record) {
         let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
@@ -179,6 +195,21 @@ impl FlickApp {
                 // privacy prompt. Keep retrying quietly for a while.
                 if self.scan_failures == 0 {
                     self.toast(tf("Cannot read folder: {0}", &[&e]));
+                }
+                // A privacy prompt holds the scan back until it is answered, so a
+                // refusal that comes back twice is a real "no" (denied earlier, or a
+                // location macOS never prompts for). Picking the folder in the system
+                // dialog still opens it.
+                let dir = self.index.dir.clone();
+                if self.scan_failures == 1
+                    && e.kind() == std::io::ErrorKind::PermissionDenied
+                    && ff_platform::can_request_folder_access()
+                    && self.modal.is_none()
+                    && !dir.as_os_str().is_empty()
+                    && !self.access_offered.contains(&dir)
+                {
+                    self.access_offered.push(dir.clone());
+                    self.modal = Some(crate::app::Modal::FolderAccess { dir });
                 }
                 if self.scan_failures < SCAN_RETRIES {
                     self.scan_failures += 1;

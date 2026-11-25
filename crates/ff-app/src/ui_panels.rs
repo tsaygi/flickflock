@@ -984,6 +984,7 @@ impl FlickApp {
             Discard,
             SaveAs(SaveFormat, u8),
             Extend([u32; 4], [u8; 3]),
+            GrantAccess(std::path::PathBuf),
         }
         let mut outcome = Outcome::None;
         let response = egui::Modal::new(egui::Id::unique("ff-modal")).show(ctx, |ui| {
@@ -1110,6 +1111,22 @@ impl FlickApp {
                         }
                     });
                 }
+                Modal::FolderAccess { dir } => {
+                    ui.set_max_width(420.0);
+                    let name = dir.file_name().unwrap_or(dir.as_os_str()).to_string_lossy();
+                    ui.heading(tf("Cannot read folder: {0}", &[&name]));
+                    ui.label(t("To flick through your photos, FlickFlock needs access to this folder. Choose it once and FlickFlock will remember it."));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(t("Grant Access")).clicked() {
+                            outcome = Outcome::GrantAccess(dir.clone());
+                            keep = false;
+                        }
+                        if ui.button(t("Cancel")).clicked() {
+                            keep = false;
+                        }
+                    });
+                }
                 Modal::Message { title, body } => {
                     ui.heading(title.as_str());
                     ui.label(body.as_str());
@@ -1131,6 +1148,7 @@ impl FlickApp {
             Outcome::Rename(name) => self.rename_current(&name),
             Outcome::Overwrite | Outcome::SaveThenClose => self.save_over_original_or_as(),
             Outcome::Discard => self.discard_edits(),
+            Outcome::GrantAccess(dir) => self.grant_folder_access(&dir),
             // Quality 0 = "ask for format first".
             Outcome::SaveAs(_, 0) => self.request_save_as(),
             Outcome::SaveAs(format, quality) => self.save_as_dialog(format, quality),

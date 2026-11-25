@@ -148,8 +148,14 @@ pub fn integration() -> &'static dyn PlatformIntegration {
 
 #[cfg(target_os = "macos")]
 pub use macos::sandbox::{
-    ensure_folder_access, is_sandboxed, open, remember_folder, restore_folder_access, reveal,
+    ensure_folder_access, is_sandboxed, open, remember_folder, request_folder_access,
+    restore_folder_access, reveal,
 };
+
+/// Can a folder the OS refuses to list be unlocked by picking it in a system dialog?
+pub fn can_request_folder_access() -> bool {
+    cfg!(target_os = "macos")
+}
 
 /// Only macOS has an app sandbox to work with.
 #[cfg(not(target_os = "macos"))]
@@ -166,6 +172,16 @@ pub fn remember_folder(_dir: &Path) {}
 #[cfg(not(target_os = "macos"))]
 pub fn ensure_folder_access(_dir: &Path, _suggested: &Path, _message: &str, _prompt: &str) -> bool {
     true
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn request_folder_access(
+    _dir: &Path,
+    _suggested: &Path,
+    _message: &str,
+    _prompt: &str,
+) -> bool {
+    false
 }
 
 /// Integration used on every OS that has nothing to hook.

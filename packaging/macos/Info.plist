@@ -57,6 +57,8 @@
     <string>FlickFlock reads the other images in this folder so you can flick through them.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>FlickFlock reads the other images in this folder so you can flick through them.</string>
+    <key>NSFileProviderDomainUsageDescription</key>
+    <string>FlickFlock reads the other images in this folder so you can flick through them.</string>
     <key>NSRemovableVolumesUsageDescription</key>
     <string>FlickFlock reads the other images in this folder so you can flick through them.</string>
     <key>NSNetworkVolumesUsageDescription</key>

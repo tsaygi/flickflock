@@ -100,12 +100,28 @@ pub(crate) struct CropState {
 }
 
 pub(crate) enum Modal {
-    Rename { text: String, focus: bool },
+    Rename {
+        text: String,
+        focus: bool,
+    },
     ConfirmOverwrite,
     Unsaved,
-    SaveAs { format: SaveFormat, quality: u8 },
-    Extend { margins: [u32; 4], color: [u8; 3] },
-    Message { title: String, body: String },
+    SaveAs {
+        format: SaveFormat,
+        quality: u8,
+    },
+    Extend {
+        margins: [u32; 4],
+        color: [u8; 3],
+    },
+    Message {
+        title: String,
+        body: String,
+    },
+    /// The OS refuses to list this folder; offer to pick it in the system dialog.
+    FolderAccess {
+        dir: PathBuf,
+    },
 }
 
 /// A change to a default-app association (index into `FILE_TYPE_GROUPS`).
@@ -260,6 +276,8 @@ pub struct FlickApp {
     pub(crate) scan_seq: u64,
     /// Consecutive failed scans of the current folder (drives the retry).
     pub(crate) scan_failures: u8,
+    /// Folders the access dialog was already offered for in this session.
+    pub(crate) access_offered: Vec<PathBuf>,
     pub(crate) pending_scan: Option<PendingScan>,
     pub(crate) neighbors: [Neighbor; 2],
     pub(crate) pending_jump: Option<PendingJump>,
@@ -387,6 +405,7 @@ impl FlickApp {
             nav_root: None,
             scan_seq: 0,
             scan_failures: 0,
+            access_offered: Vec::new(),
             pending_scan: None,
             neighbors: [
                 Neighbor {

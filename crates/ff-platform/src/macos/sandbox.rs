@@ -1,8 +1,12 @@
-//! App Sandbox support: remembered folder access (security-scoped bookmarks) and Finder/default
+//! Folder access on macOS: remembered grants (security-scoped bookmarks) and Finder/default
 //! app hand-off through `NSWorkspace`, because a sandboxed app cannot spawn `/usr/bin/open`.
 //!
 //! The sandbox only grants the exact file the user opened, while FlickFlock browses the whole
 //! folder, so the folder is requested once and the grant is kept in `NSUserDefaults`.
+//!
+//! Outside the sandbox the same mechanism is the way out when the privacy system refuses a
+//! folder (iCloud Drive, Desktop, Documents, … after "Don't Allow", or when no prompt is
+//! offered at all): a folder picked in the system dialog is readable regardless.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -122,9 +126,6 @@ fn activate(bookmark: Retained<AnyObject>) -> Option<Retained<AnyObject>> {
 
 /// Re-activates every remembered folder. Call once at startup.
 pub fn restore_folder_access() {
-    if !is_sandboxed() {
-        return;
-    }
     let live: Vec<_> = stored_bookmarks()
         .into_iter()
         .filter_map(activate)
@@ -134,9 +135,6 @@ pub fn restore_folder_access() {
 
 /// Keeps access to `dir`, which the user just picked in a system dialog, across launches.
 pub fn remember_folder(dir: &Path) {
-    if !is_sandboxed() {
-        return;
-    }
     let Some(url) = NSURL::from_directory_path(dir) else {
         return;
     };
@@ -183,6 +181,23 @@ pub fn ensure_folder_access(dir: &Path, suggested: &Path, message: &str, prompt:
             .push(dir.to_path_buf());
     }
     granted
+}
+
+/// Asks the user to pick `dir` (or a folder above it) in the system dialog, which makes it
+/// readable whatever the privacy settings say, and remembers the grant. The dialog starts at
+/// `suggested`. Returns whether the chosen folder covers `dir`.
+///
+/// Unlike [`ensure_folder_access`] this never touches the folder itself, so it cannot block on
+/// a privacy prompt. Must be called on the main thread.
+pub fn request_folder_access(dir: &Path, suggested: &Path, message: &str, prompt: &str) -> bool {
+    if MainThreadMarker::new().is_none() {
+        return false;
+    }
+    let Some(chosen) = ask_for_folder(suggested, message, prompt) else {
+        return false;
+    };
+    remember_folder(&chosen);
+    dir.starts_with(&chosen)
 }
 
 fn ask_for_folder(suggested: &Path, message: &str, prompt: &str) -> Option<PathBuf> {
