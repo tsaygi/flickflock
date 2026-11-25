@@ -558,6 +558,13 @@ mod tests {
             }
         }
         assert_eq!((loaded, failed), (1, 1));
+        // Workers wake after sending, so the last wake can trail the last result.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while woke.load(std::sync::atomic::Ordering::SeqCst) < 2
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::yield_now();
+        }
         assert_eq!(woke.load(std::sync::atomic::Ordering::SeqCst), 2);
         assert!(loader.poll().is_empty());
     }

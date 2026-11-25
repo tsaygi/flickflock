@@ -37,7 +37,7 @@ else
         target/x86_64-apple-darwin/release/flickflock
 fi
 
-sed "s/@VERSION@/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@BUILD@/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 cp assets/icon.icns "$APP/Contents/Resources/icon.icns"
 codesign --force --sign - "$APP"
 

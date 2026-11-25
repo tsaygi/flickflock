@@ -146,6 +146,28 @@ pub fn integration() -> &'static dyn PlatformIntegration {
     imp::integration()
 }
 
+#[cfg(target_os = "macos")]
+pub use macos::sandbox::{
+    ensure_folder_access, is_sandboxed, open, remember_folder, restore_folder_access, reveal,
+};
+
+/// Only macOS has an app sandbox to work with.
+#[cfg(not(target_os = "macos"))]
+pub fn is_sandboxed() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn restore_folder_access() {}
+
+#[cfg(not(target_os = "macos"))]
+pub fn remember_folder(_dir: &Path) {}
+
+#[cfg(not(target_os = "macos"))]
+pub fn ensure_folder_access(_dir: &Path, _suggested: &Path, _message: &str, _prompt: &str) -> bool {
+    true
+}
+
 /// Integration used on every OS that has nothing to hook.
 #[cfg(not(target_os = "macos"))]
 pub(crate) struct NoIntegration;

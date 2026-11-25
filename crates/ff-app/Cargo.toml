@@ -30,7 +30,6 @@ bytemuck = { version = "1", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trash = "5"
 arboard = "3"
-opener = { version = "0.9", features = ["reveal"] }
 interprocess = "2"
 rfd = "0.18"
 winit = "0.30"
@@ -38,6 +37,9 @@ sys-locale = "0.3"
 
 [dev-dependencies]
 toml.workspace = true
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+opener = { version = "0.9", features = ["reveal"] }
 
 # ---- Packaging -------------------------------------------------------------
 # Windows (.msi / setup .exe) and Linux (.deb / AppImage) packages are built

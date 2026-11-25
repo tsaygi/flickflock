@@ -365,5 +365,7 @@ fn fallback_delegate_class() -> Result<&'static AnyClass, String> {
         .ok_or_else(|| "could not create the application delegate class".into())
 }
 
+pub(crate) mod sandbox;
+
 #[cfg(test)]
 mod tests;
