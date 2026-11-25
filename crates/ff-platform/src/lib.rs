@@ -146,6 +146,18 @@ pub fn integration() -> &'static dyn PlatformIntegration {
     imp::integration()
 }
 
+/// Outcome of [`ensure_folder_access`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FolderAccess {
+    /// The folder can be listed.
+    Granted,
+    /// The user declined, or picked a folder that does not cover it.
+    Denied,
+    /// The system dialog could not be shown now (the app is still launching); ask again from
+    /// a user action.
+    Deferred,
+}
+
 #[cfg(target_os = "macos")]
 pub use macos::sandbox::{
     ensure_folder_access, is_sandboxed, open, remember_folder, request_folder_access,
@@ -170,8 +182,13 @@ pub fn restore_folder_access() {}
 pub fn remember_folder(_dir: &Path) {}
 
 #[cfg(not(target_os = "macos"))]
-pub fn ensure_folder_access(_dir: &Path, _suggested: &Path, _message: &str, _prompt: &str) -> bool {
-    true
+pub fn ensure_folder_access(
+    _dir: &Path,
+    _suggested: &Path,
+    _message: &str,
+    _prompt: &str,
+) -> FolderAccess {
+    FolderAccess::Granted
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -1332,7 +1332,7 @@ checksum = "b97b65636e5b9ef369943878ac74335ba1c55c1cb6adbf1e2c293c624248d693"
 
 [[package]]
 name = "ff-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "criterion",
  "crossbeam-channel",
@@ -1356,7 +1356,7 @@ dependencies = [
 
 [[package]]
 name = "ff-platform"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "libloading",
  "objc2 0.6.5",
@@ -1395,7 +1395,7 @@ dependencies = [
 
 [[package]]
 name = "flickflock"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "arboard",
  "bytemuck",

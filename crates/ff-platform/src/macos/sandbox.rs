@@ -16,6 +16,8 @@ use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2::{msg_send, MainThreadMarker};
 use objc2_foundation::{NSString, NSURL};
 
+use crate::FolderAccess;
+
 const BOOKMARKS_KEY: &str = "FolderBookmarks";
 /// Each active scope holds a kernel resource, so only the most recent grants are kept.
 const MAX_BOOKMARKS: usize = 64;
@@ -25,6 +27,8 @@ const BOOKMARK_CREATE_SCOPED: usize = 1 << 11;
 const BOOKMARK_RESOLVE_SCOPED: usize = (1 << 8) | (1 << 10);
 /// `NSModalResponseOK`.
 const MODAL_OK: isize = 1;
+/// `NSModalResponseCancel`.
+const MODAL_CANCEL: isize = 0;
 
 /// Folders the user declined this session, so browsing does not ask again for each file.
 static DECLINED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
@@ -154,10 +158,15 @@ pub fn remember_folder(dir: &Path) {
 /// `suggested`, normally one level up so that neighbouring folders are covered too. `message`
 /// and `prompt` are its already translated texts.
 ///
-/// Must be called on the main thread. Always `true` outside the sandbox.
-pub fn ensure_folder_access(dir: &Path, suggested: &Path, message: &str, prompt: &str) -> bool {
+/// Must be called on the main thread. Always [`FolderAccess::Granted`] outside the sandbox.
+pub fn ensure_folder_access(
+    dir: &Path,
+    suggested: &Path,
+    message: &str,
+    prompt: &str,
+) -> FolderAccess {
     if !is_sandboxed() || std::fs::read_dir(dir).is_ok() {
-        return true;
+        return FolderAccess::Granted;
     }
     if DECLINED
         .lock()
@@ -165,22 +174,24 @@ pub fn ensure_folder_access(dir: &Path, suggested: &Path, message: &str, prompt:
         .iter()
         .any(|d| d == dir)
     {
-        return false;
+        return FolderAccess::Denied;
     }
     if MainThreadMarker::new().is_none() {
-        return false;
+        return FolderAccess::Deferred;
     }
-    if let Some(chosen) = ask_for_folder(suggested, message, prompt) {
-        remember_folder(&chosen);
+    match ask_for_folder(suggested, message, prompt) {
+        Err(()) => return FolderAccess::Deferred,
+        Ok(Some(chosen)) => remember_folder(&chosen),
+        Ok(None) => {}
     }
-    let granted = std::fs::read_dir(dir).is_ok();
-    if !granted {
-        DECLINED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(dir.to_path_buf());
+    if std::fs::read_dir(dir).is_ok() {
+        return FolderAccess::Granted;
     }
-    granted
+    DECLINED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(dir.to_path_buf());
+    FolderAccess::Denied
 }
 
 /// Asks the user to pick `dir` (or a folder above it) in the system dialog, which makes it
@@ -193,15 +204,18 @@ pub fn request_folder_access(dir: &Path, suggested: &Path, message: &str, prompt
     if MainThreadMarker::new().is_none() {
         return false;
     }
-    let Some(chosen) = ask_for_folder(suggested, message, prompt) else {
+    let Ok(Some(chosen)) = ask_for_folder(suggested, message, prompt) else {
         return false;
     };
     remember_folder(&chosen);
     dir.starts_with(&chosen)
 }
 
-fn ask_for_folder(suggested: &Path, message: &str, prompt: &str) -> Option<PathBuf> {
-    let class = class(c"NSOpenPanel")?;
+/// The folder the user picked, `Ok(None)` when they cancelled, or `Err` when the dialog could
+/// not be shown at all. AppKit refuses it while the app is still launching, e.g. when Finder
+/// starts FlickFlock to open a photo.
+fn ask_for_folder(suggested: &Path, message: &str, prompt: &str) -> Result<Option<PathBuf>, ()> {
+    let class = class(c"NSOpenPanel").ok_or(())?;
     let message = NSString::from_str(message);
     let prompt = NSString::from_str(prompt);
     let start = NSURL::from_directory_path(suggested);
@@ -209,7 +223,7 @@ fn ask_for_folder(suggested: &Path, message: &str, prompt: &str) -> Option<PathB
     // documented NSOpenPanel/NSSavePanel method with these argument types.
     unsafe {
         let panel: Option<Retained<AnyObject>> = msg_send![class, openPanel];
-        let panel = panel?;
+        let panel = panel.ok_or(())?;
         let _: () = msg_send![&*panel, setCanChooseDirectories: true];
         let _: () = msg_send![&*panel, setCanChooseFiles: false];
         let _: () = msg_send![&*panel, setAllowsMultipleSelection: false];
@@ -219,11 +233,13 @@ fn ask_for_folder(suggested: &Path, message: &str, prompt: &str) -> Option<PathB
             let _: () = msg_send![&*panel, setDirectoryURL: &**start];
         }
         let response: isize = msg_send![&*panel, runModal];
-        if response != MODAL_OK {
-            return None;
+        match response {
+            MODAL_OK => {}
+            MODAL_CANCEL => return Ok(None),
+            _ => return Err(()),
         }
         let url: Option<Retained<NSURL>> = msg_send![&*panel, URL];
-        url?.to_file_path()
+        Ok(url.and_then(|url| url.to_file_path()))
     }
 }
 

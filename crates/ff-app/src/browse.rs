@@ -88,12 +88,23 @@ impl FlickApp {
                 .parent()
                 .filter(|p| p.parent().is_some() && Some(*p) != home.as_deref())
                 .unwrap_or(dir);
-            ff_platform::ensure_folder_access(
+            let access = ff_platform::ensure_folder_access(
                 dir,
                 suggested,
                 t("To flick through your photos, FlickFlock needs access to this folder. Choose it once and FlickFlock will remember it."),
                 t("Grant Access"),
             );
+            // The system dialog cannot open while the app is still launching (Finder opened
+            // a photo), so offer it from our own dialog, whose button can open it.
+            if access == ff_platform::FolderAccess::Deferred
+                && self.modal.is_none()
+                && !self.access_offered.iter().any(|d| d == dir)
+            {
+                self.access_offered.push(dir.to_path_buf());
+                self.modal = Some(crate::app::Modal::FolderAccess {
+                    dir: dir.to_path_buf(),
+                });
+            }
         }
         self.slideshow = None;
         if is_dir {
