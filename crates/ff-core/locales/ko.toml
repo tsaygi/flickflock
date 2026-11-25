@@ -246,3 +246,4 @@
 "Could not change the default app: {0}" = "기본 앱을 변경할 수 없음: {0}"
 "Pause" = "일시 정지"
 "Resume" = "재개"
+"Restore previous app" = "이전 앱으로 복원"

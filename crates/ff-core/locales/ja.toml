@@ -246,3 +246,4 @@
 "Could not change the default app: {0}" = "デフォルトのアプリを変更できませんでした：{0}"
 "Pause" = "一時停止"
 "Resume" = "再開"
+"Restore previous app" = "以前のアプリに戻す"

@@ -38,6 +38,13 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 - **Move to Trash on macOS uses `NSFileManager`**, not Finder scripting, so no Automation permission prompt appears. The trade-off is that Finder's "Put Back" is not available for those items.
 - **Single instance** uses a local socket in the user's cache directory (a named pipe on Windows). With "Open files in the existing window" off, or with `--new-window`, a separate process and window is started.
 
+## macOS privacy prompts
+
+- Desktop, Documents, Downloads and external or network volumes are guarded by a per-folder consent prompt, and any file-system call into them (even `stat` or creating a folder watcher) blocks until the user answers. Nothing that touches a folder therefore runs on the UI thread: checking the opened path, scanning, and creating the watcher all happen on background threads, and a failed scan is retried for a while so browsing starts as soon as access is granted.
+- Background jobs run on their own threads, not on the shared CPU pool, so a job that is waiting for a prompt cannot stall decoding.
+- Neighbouring folders are not indexed ahead of time when the current folder sits directly under the home folder or a volume root: its siblings are unrelated locations, each with its own prompt. They are looked up when the user actually moves to the next folder.
+- The bundle's Info.plist carries usage descriptions for those locations.
+
 ## Localisation
 
 - **English text is the key.** UI code calls `t("Open…")` / `tf("Moved {0} to the Trash", &[&name])`; each language is a flat TOML table from English to the translation, embedded in the binary. A missing translation falls back to English instead of showing a key name.
@@ -54,7 +61,8 @@ Non-obvious choices, interpretations of ambiguous requirements, and known limita
 - **macOS** uses Launch Services (`LSSetDefaultRoleHandlerForContentType`, via plain C bindings). The OS applies a change a few seconds after the call returns, so the tab shows the new state at once and re-checks eight seconds later. It only works from an app bundle (a bundle identifier is required).
 - **Linux** uses `xdg-mime` with the installed `flickflock.desktop` entry.
 - **Windows** protects the per-user default-app choice, so applications cannot change it; the tab explains this and opens *Settings ▸ Apps ▸ Default apps*.
-- There is no "remove as default": the OS has no notion of an unset default, so the user picks another app in the system's own UI.
+- **Undo.** Before taking a type over, the app that opened it is remembered in the config (`[associations.previous]`), and the row offers *Restore previous app*. Types FlickFlock already had when first asked have nothing to restore to.
+- **One request per OS type.** Extensions that share a type identifier (`.jpg`/`.jpeg`, `.tif`/`.tiff`) are set once, because macOS may ask the user to confirm each change.
 
 ## Decoding
 

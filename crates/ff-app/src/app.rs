@@ -108,6 +108,15 @@ pub(crate) enum Modal {
     Message { title: String, body: String },
 }
 
+/// A change to a default-app association (index into `FILE_TYPE_GROUPS`).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AssocOp {
+    /// Make FlickFlock the default.
+    Claim(usize),
+    /// Give the type back to the app that had it before.
+    Restore(usize),
+}
+
 pub(crate) enum EditEvent {
     Updated {
         path: PathBuf,
@@ -145,10 +154,23 @@ pub(crate) enum BgEvent {
     },
     Edit(EditEvent),
     Toast(String),
+    /// A path given to `open_path` was checked on disk (`None` = does not exist).
+    Resolved {
+        path: PathBuf,
+        is_dir: Option<bool>,
+    },
+    /// The folder watcher for `dir` is ready (or could not be created).
+    Watcher {
+        dir: PathBuf,
+        watcher: Option<FolderWatcher>,
+    },
     /// Default-app status per entry of `FILE_TYPE_GROUPS`, plus an error to show.
     Associations {
         status: Vec<Option<bool>>,
-        claimed: Vec<usize>,
+        /// Types whose default just changed: `(group, now ours?)`.
+        changed: Vec<(usize, bool)>,
+        /// Previous handlers to remember: `(extension, handler)`.
+        remember: Vec<(String, String)>,
         error: Option<String>,
     },
 }
@@ -236,11 +258,14 @@ pub struct FlickApp {
     pub(crate) direction: Direction,
     pub(crate) nav_root: Option<PathBuf>,
     pub(crate) scan_seq: u64,
+    /// Consecutive failed scans of the current folder (drives the retry).
+    pub(crate) scan_failures: u8,
     pub(crate) pending_scan: Option<PendingScan>,
     pub(crate) neighbors: [Neighbor; 2],
     pub(crate) pending_jump: Option<PendingJump>,
     pub(crate) boundary_armed: Option<(Direction, Instant)>,
     pub(crate) watcher: Option<FolderWatcher>,
+    pub(crate) watcher_pending: bool,
     pub(crate) watch_flag: Arc<AtomicBool>,
     pub(crate) watch_dirty_since: Option<Instant>,
 
@@ -286,8 +311,8 @@ pub struct FlickApp {
     /// Default-app status per file type (`None` until queried).
     pub(crate) assoc_status: Option<Vec<Option<bool>>>,
     pub(crate) assoc_busy: bool,
-    /// Types just claimed, shown as ours until the OS has caught up.
-    pub(crate) assoc_claimed: Vec<usize>,
+    /// Types just changed `(group, ours?)`, shown that way until the OS has caught up.
+    pub(crate) assoc_changed: Vec<(usize, bool)>,
     pub(crate) assoc_recheck_at: Option<Instant>,
     pub(crate) fullscreen: bool,
     pub(crate) title: String,
@@ -361,6 +386,7 @@ impl FlickApp {
             direction: Direction::Forward,
             nav_root: None,
             scan_seq: 0,
+            scan_failures: 0,
             pending_scan: None,
             neighbors: [
                 Neighbor {
@@ -375,6 +401,7 @@ impl FlickApp {
             pending_jump: None,
             boundary_armed: None,
             watcher: None,
+            watcher_pending: false,
             watch_flag: Arc::new(AtomicBool::new(false)),
             watch_dirty_since: None,
             cache: ByteLru::new(cache_bytes),
@@ -414,7 +441,7 @@ impl FlickApp {
             meta_pending: None,
             assoc_status: None,
             assoc_busy: false,
-            assoc_claimed: Vec::new(),
+            assoc_changed: Vec::new(),
             assoc_recheck_at: None,
             title: String::new(),
             selftest: crate::selftest::SelfTest::from_env(),
@@ -456,15 +483,24 @@ impl FlickApp {
         self.ctx.request_repaint();
     }
 
-    /// Run `work` on the thread pool and deliver its result to the UI thread.
+    /// Run `work` on its own thread and deliver its result to the UI thread.
+    ///
+    /// These jobs do disk and OS work that can block for a long time (a slow
+    /// share, or macOS waiting for the user to answer a privacy prompt), so
+    /// they must not occupy the shared CPU pool that decoding relies on.
     pub(crate) fn spawn_bg(&self, work: impl FnOnce() -> BgEvent + Send + 'static) {
         let tx = self.bg_tx.clone();
         let ctx = self.ctx.clone();
-        rayon::spawn(move || {
-            if tx.send(work()).is_ok() {
-                ctx.request_repaint();
-            }
-        });
+        let spawned = std::thread::Builder::new()
+            .name("ff-bg".into())
+            .spawn(move || {
+                if tx.send(work()).is_ok() {
+                    ctx.request_repaint();
+                }
+            });
+        if let Err(e) = spawned {
+            tracing::error!("could not start a background thread: {e}");
+        }
     }
 
     pub(crate) fn mark_settings_dirty(&mut self) {
@@ -522,20 +558,31 @@ impl FlickApp {
                 }
                 BgEvent::Edit(ev) => self.on_edit_event(ev),
                 BgEvent::Toast(text) => self.toast(text),
+                BgEvent::Resolved { path, is_dir } => self.on_resolved(path, is_dir),
+                BgEvent::Watcher { dir, watcher } => self.on_watcher(dir, watcher),
                 BgEvent::Associations {
                     status,
-                    claimed,
+                    changed,
+                    remember,
                     error,
                 } => {
                     self.assoc_status = Some(status);
                     self.assoc_busy = false;
-                    if !claimed.is_empty() {
+                    if !remember.is_empty() {
+                        // Kept even after a restore: the OS may ask the user to
+                        // confirm a change, so a call succeeding does not mean it
+                        // happened. A stale entry is harmless and is replaced by
+                        // the next claim.
+                        self.settings.associations.previous.extend(remember);
+                        self.mark_settings_dirty();
+                    }
+                    if !changed.is_empty() {
                         // The OS applies a new default a few seconds later: show it
                         // right away and verify afterwards.
-                        self.assoc_claimed = claimed;
+                        self.assoc_changed = changed;
                         self.assoc_recheck_at = Some(Instant::now() + Duration::from_secs(8));
                     } else if self.assoc_recheck_at.is_none() {
-                        self.assoc_claimed.clear();
+                        self.assoc_changed.clear();
                     }
                     if let Some(error) = error {
                         self.toast(tf("Could not change the default app: {0}", &[&error]));

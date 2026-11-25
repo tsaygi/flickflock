@@ -32,6 +32,11 @@ pub fn cache_dir() -> Option<PathBuf> {
     Some(project_dirs()?.cache_dir().to_path_buf())
 }
 
+/// The user's home directory.
+pub fn home_dir() -> Option<PathBuf> {
+    directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf())
+}
+
 /// The config file. `FLICKFLOCK_CONFIG` overrides the location (portable
 /// installs, tests).
 pub fn config_file() -> Option<PathBuf> {
@@ -231,6 +236,15 @@ pub struct Metadata {
     pub pinned: Vec<String>,
 }
 
+/// Default-app bookkeeping for Settings ▸ File types.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct Associations {
+    /// For each file extension FlickFlock took over: the app that opened it
+    /// before (bundle identifier / `.desktop` entry), so it can be restored.
+    pub previous: BTreeMap<String, String>,
+}
+
 /// The whole configuration file.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Settings {
@@ -242,6 +256,7 @@ pub struct Settings {
     pub slideshow: Slideshow,
     pub sorting: SortSpec,
     pub metadata: Metadata,
+    pub associations: Associations,
     pub bindings: KeyBindings,
 }
 
@@ -271,6 +286,7 @@ impl Settings {
         settings.slideshow = section(&doc, "slideshow", &mut warnings);
         settings.sorting = section(&doc, "sorting", &mut warnings);
         settings.metadata = section(&doc, "metadata", &mut warnings);
+        settings.associations = section(&doc, "associations", &mut warnings);
         settings.sanitize(&mut warnings);
         if let Some(value) = doc.get("bindings") {
             match value.clone().try_into::<BTreeMap<String, toml::Value>>() {
@@ -360,6 +376,7 @@ impl Settings {
             slideshow: &'a Slideshow,
             sorting: &'a SortSpec,
             metadata: &'a Metadata,
+            associations: &'a Associations,
             bindings: BTreeMap<String, Vec<String>>,
         }
         let doc = Doc {
@@ -371,6 +388,7 @@ impl Settings {
             slideshow: &self.slideshow,
             sorting: &self.sorting,
             metadata: &self.metadata,
+            associations: &self.associations,
             bindings: self.bindings.to_table(),
         };
         match toml::to_string_pretty(&doc) {
@@ -469,6 +487,9 @@ mod tests {
             recursive: false,
         };
         s.metadata.pinned = vec!["EXIF/ExposureTime".into()];
+        s.associations
+            .previous
+            .insert("jpg".into(), "com.apple.Preview".into());
         s.transitions.slideshow = "ripple".into();
         s.bindings
             .add(Action::NextImage, Binding::plain("L"), true)

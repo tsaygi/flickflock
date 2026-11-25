@@ -111,15 +111,27 @@ pub trait PlatformIntegration: Send + Sync {
         associations::support()
     }
 
-    /// Is this app the default for files with `extension` (MIME type `mime`)?
-    /// `None` when the OS cannot tell. May block briefly; call off the UI thread.
-    fn is_default_for(&self, extension: &str, mime: &str) -> Option<bool> {
-        associations::is_default(extension, mime)
+    /// Identifier of this app as the OS knows it (bundle identifier, `.desktop` entry).
+    fn own_handler_id(&self) -> Option<String> {
+        associations::own_id()
     }
 
-    /// Make this app the default for files with `extension` (MIME type `mime`).
-    fn set_default_for(&self, extension: &str, mime: &str) -> Result<(), PlatformError> {
-        associations::set_default(extension, mime)
+    /// Identifier of the app that currently opens files with `extension`
+    /// (MIME type `mime`) by default. May block briefly; call off the UI thread.
+    fn default_handler_for(&self, extension: &str, mime: &str) -> Option<String> {
+        associations::default_handler(extension, mime)
+    }
+
+    /// Make `handler` (an identifier as returned by [`Self::default_handler_for`]
+    /// or [`Self::own_handler_id`]) the default app for a group of extensions that
+    /// share the MIME type `mime`. Each underlying OS type is set once.
+    fn set_default_handler(
+        &self,
+        extensions: &[&str],
+        mime: &str,
+        handler: &str,
+    ) -> Result<(), PlatformError> {
+        associations::set_handler(extensions, mime, handler)
     }
 
     /// Open the OS page where the user chooses default apps

@@ -91,7 +91,8 @@ impl FlickApp {
                     self.settings.general.language = arg.to_owned();
                     crate::apply_language(arg);
                 }
-                "claim" => self.refresh_associations(arg.parse().ok().into_iter().collect()),
+                "claim" => self.refresh_associations(arg.parse().ok().map(crate::app::AssocOp::Claim).into_iter().collect()),
+                "restore" => self.refresh_associations(arg.parse().ok().map(crate::app::AssocOp::Restore).into_iter().collect()),
                 "assoc" => println!("selftest: assoc {:?}", self.assoc_status),
                 "toast" => self.toast(arg.to_owned()),
                 "skim" => self.skim_to(arg.parse().unwrap_or(0.0)),

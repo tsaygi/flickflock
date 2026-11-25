@@ -108,6 +108,24 @@ pub struct ImageEntry {
 }
 
 impl ImageEntry {
+    /// An entry for a path without touching the disk (size and dates unknown).
+    /// Used to show a file at once; a folder scan fills in the details.
+    pub fn unknown(path: &Path) -> Self {
+        Self {
+            name: path.file_name().map(OsString::from).unwrap_or_default(),
+            ext: path
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default(),
+            path: path.to_path_buf(),
+            size: 0,
+            modified: None,
+            created: None,
+            taken: None,
+            dimensions: None,
+        }
+    }
+
     pub fn from_path(path: &Path) -> std::io::Result<Self> {
         let md = std::fs::metadata(path)?;
         Ok(Self::from_metadata(path.to_path_buf(), &md))

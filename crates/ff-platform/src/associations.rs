@@ -108,34 +108,49 @@ mod imp {
         }
     }
 
-    pub fn is_default(extension: &str, _mime: &str) -> Option<bool> {
-        let me = bundle_id()?;
-        let uti = uti_for(extension)?;
-        // SAFETY: `uti` is a valid CFString; the result follows the Copy rule (may be null).
-        let handler =
-            take(unsafe { LSCopyDefaultRoleHandlerForContentType(as_ref(&uti), ROLES_ALL) });
-        Some(
-            handler
-                .map(|h| h.to_string().eq_ignore_ascii_case(&me))
-                .unwrap_or(false),
-        )
+    pub fn own_id() -> Option<String> {
+        bundle_id()
     }
 
-    pub fn set_default(extension: &str, _mime: &str) -> Result<(), PlatformError> {
-        let me = bundle_id()
-            .ok_or_else(|| PlatformError::Unsupported("not running from an app bundle".into()))?;
-        let uti = uti_for(extension)
-            .ok_or_else(|| PlatformError::Decode(format!("no type identifier for .{extension}")))?;
-        let me = CFString::from_str(&me);
-        // SAFETY: both arguments are valid CFStrings for the duration of the call.
-        let status =
-            unsafe { LSSetDefaultRoleHandlerForContentType(as_ref(&uti), ROLES_ALL, as_ref(&me)) };
-        if status == 0 {
-            Ok(())
-        } else {
-            Err(PlatformError::Decode(format!(
-                "Launch Services error {status} for .{extension}"
-            )))
+    pub fn default_handler(extension: &str, _mime: &str) -> Option<String> {
+        let uti = uti_for(extension)?;
+        // SAFETY: `uti` is a valid CFString; the result follows the Copy rule (may be null).
+        take(unsafe { LSCopyDefaultRoleHandlerForContentType(as_ref(&uti), ROLES_ALL) })
+            .map(|h| h.to_string())
+    }
+
+    pub fn set_handler(
+        extensions: &[&str],
+        _mime: &str,
+        handler: &str,
+    ) -> Result<(), PlatformError> {
+        // Several extensions usually share one type identifier (.jpg/.jpeg/.jpe);
+        // set each identifier once, because macOS may ask the user to confirm every call.
+        let mut seen: Vec<String> = Vec::new();
+        let handler = CFString::from_str(handler);
+        let mut first_error = None;
+        for extension in extensions {
+            let Some(uti) = uti_for(extension) else {
+                continue;
+            };
+            let name = uti.to_string();
+            if seen.contains(&name) {
+                continue;
+            }
+            seen.push(name);
+            // SAFETY: both arguments are valid CFStrings for the duration of the call.
+            let status = unsafe {
+                LSSetDefaultRoleHandlerForContentType(as_ref(&uti), ROLES_ALL, as_ref(&handler))
+            };
+            if status != 0 && first_error.is_none() {
+                first_error = Some(PlatformError::Decode(format!(
+                    "Launch Services error {status} for .{extension}"
+                )));
+            }
+        }
+        match first_error {
+            Some(e) => Err(e),
+            None => Ok(()),
         }
     }
 
@@ -193,12 +208,20 @@ mod imp {
         }
     }
 
-    pub fn is_default(_extension: &str, mime: &str) -> Option<bool> {
-        Some(xdg_mime(&["query", "default", mime])? == DESKTOP_ENTRY)
+    pub fn own_id() -> Option<String> {
+        Some(DESKTOP_ENTRY.to_owned())
     }
 
-    pub fn set_default(_extension: &str, mime: &str) -> Result<(), PlatformError> {
-        xdg_mime(&["default", DESKTOP_ENTRY, mime])
+    pub fn default_handler(_extension: &str, mime: &str) -> Option<String> {
+        xdg_mime(&["query", "default", mime]).filter(|entry| !entry.is_empty())
+    }
+
+    pub fn set_handler(
+        _extensions: &[&str],
+        mime: &str,
+        handler: &str,
+    ) -> Result<(), PlatformError> {
+        xdg_mime(&["default", handler, mime])
             .map(|_| ())
             .ok_or_else(|| {
                 PlatformError::Decode(format!("xdg-mime could not set the default for {mime}"))
@@ -218,11 +241,19 @@ mod imp {
         AssociationSupport::SystemSettings
     }
 
-    pub fn is_default(_extension: &str, _mime: &str) -> Option<bool> {
+    pub fn own_id() -> Option<String> {
         None
     }
 
-    pub fn set_default(_extension: &str, _mime: &str) -> Result<(), PlatformError> {
+    pub fn default_handler(_extension: &str, _mime: &str) -> Option<String> {
+        None
+    }
+
+    pub fn set_handler(
+        _extensions: &[&str],
+        _mime: &str,
+        _handler: &str,
+    ) -> Result<(), PlatformError> {
         Err(PlatformError::Unsupported(
             "Windows only lets the user change default apps in Settings".into(),
         ))
@@ -245,14 +276,24 @@ mod imp {
     pub fn support() -> AssociationSupport {
         AssociationSupport::Unavailable
     }
-    pub fn is_default(_extension: &str, _mime: &str) -> Option<bool> {
+    pub fn own_id() -> Option<String> {
         None
     }
-    pub fn set_default(_extension: &str, _mime: &str) -> Result<(), PlatformError> {
+
+    pub fn default_handler(_extension: &str, _mime: &str) -> Option<String> {
+        None
+    }
+
+    pub fn set_handler(
+        _extensions: &[&str],
+        _mime: &str,
+        _handler: &str,
+    ) -> Result<(), PlatformError> {
         Err(PlatformError::Unsupported(
             "file associations are not supported on this system".into(),
         ))
     }
+
     pub fn open_settings() -> Result<(), PlatformError> {
         Err(PlatformError::Unsupported(
             "file associations are not supported on this system".into(),
@@ -260,7 +301,7 @@ mod imp {
     }
 }
 
-pub(crate) use imp::{is_default, open_settings, set_default, support};
+pub(crate) use imp::{default_handler, open_settings, own_id, set_handler, support};
 
 #[cfg(test)]
 mod tests {
@@ -269,8 +310,9 @@ mod tests {
     #[test]
     fn queries_never_panic() {
         let _ = support();
+        let _ = own_id();
         for ext in ["jpg", "png", "definitely-not-a-type", ""] {
-            let _ = is_default(ext, "image/jpeg");
+            let _ = default_handler(ext, "image/jpeg");
         }
     }
 
@@ -279,7 +321,8 @@ mod tests {
     fn unbundled_test_binary_is_reported_as_not_installed() {
         // `cargo test` binaries have no bundle identifier.
         assert_eq!(support(), AssociationSupport::NotInstalled);
-        assert_eq!(is_default("jpg", "image/jpeg"), None);
-        assert!(set_default("jpg", "image/jpeg").is_err());
+        assert_eq!(own_id(), None);
+        // Reading who handles a common type works without a bundle.
+        assert!(default_handler("jpg", "image/jpeg").is_some());
     }
 }

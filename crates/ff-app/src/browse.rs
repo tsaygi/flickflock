@@ -18,6 +18,24 @@ use std::time::{Duration, Instant};
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(350);
 /// How long a "press again" boundary prompt stays armed.
 const BOUNDARY_ARM: Duration = Duration::from_secs(6);
+/// How often and how long a failed folder scan is retried.
+const SCAN_RETRIES: u8 = 20;
+const SCAN_RETRY_DELAY: Duration = Duration::from_millis(1500);
+
+/// May the folders next to `dir` be indexed before the user asks for them?
+fn preindex_allowed(dir: &Path) -> bool {
+    let Some(parent) = dir.parent() else {
+        return false;
+    };
+    // Top-level folders ("/Volumes", a drive root) and the home folder hold
+    // unrelated, often protected, locations.
+    if parent.parent().is_none() {
+        return false;
+    }
+    ff_core::config::home_dir()
+        .map(|home| parent != home)
+        .unwrap_or(true)
+}
 
 fn slot(direction: Direction) -> usize {
     match direction {
@@ -39,12 +57,26 @@ impl FlickApp {
             return;
         }
         let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
-        let Ok(md) = std::fs::metadata(&path) else {
+        // Even a `stat` can block for as long as a macOS privacy prompt is on
+        // screen (Desktop, Documents, Downloads, external volumes), so it must
+        // not run on the UI thread.
+        self.spawn_bg(move || {
+            let is_dir = std::fs::metadata(&path).ok().map(|md| md.is_dir());
+            BgEvent::Resolved { path, is_dir }
+        });
+    }
+
+    /// Second half of [`Self::open_path`], once the path is known to exist.
+    pub(crate) fn on_resolved(&mut self, path: PathBuf, is_dir: Option<bool>) {
+        let Some(is_dir) = is_dir else {
             self.toast(tf("Cannot open {0}", &[&path.display()]));
             return;
         };
+        if self.guard_unsaved() {
+            return;
+        }
         self.slideshow = None;
-        if md.is_dir() {
+        if is_dir {
             self.nav_root = self
                 .settings
                 .folders
@@ -67,8 +99,9 @@ impl FlickApp {
         if dir != self.index.dir {
             // Show the file at once from a one-entry index; the real folder
             // index replaces it as soon as the background scan finishes.
-            let entries = ImageEntry::from_path(path).ok().into_iter().collect();
-            self.index = FolderIndex::from_entries(&dir, entries, &self.settings.sorting);
+            // Built without touching the disk: nothing here may block the UI.
+            let entries = vec![ImageEntry::unknown(path)];
+            self.index = FolderIndex::from_entries(&dir, entries, &Default::default());
             if self
                 .nav_root
                 .as_ref()
@@ -121,10 +154,25 @@ impl FlickApp {
         let mut index = match result {
             Ok(index) => index,
             Err(e) => {
-                self.toast(tf("Cannot read folder: {0}", &[&e]));
+                // Often temporary: on macOS the first read of Desktop, Documents,
+                // Downloads or an external volume fails until the user answers the
+                // privacy prompt. Keep retrying quietly for a while.
+                if self.scan_failures == 0 {
+                    self.toast(tf("Cannot read folder: {0}", &[&e]));
+                }
+                if self.scan_failures < SCAN_RETRIES {
+                    self.scan_failures += 1;
+                    self.watch_dirty_since = Some(Instant::now() + SCAN_RETRY_DELAY);
+                    self.ctx
+                        .request_repaint_after(SCAN_RETRY_DELAY + WATCH_DEBOUNCE);
+                }
                 return;
             }
         };
+        self.scan_failures = 0;
+        if self.watcher.is_none() && !self.watcher_pending {
+            self.start_watcher();
+        }
         if index.dir != self.index.dir {
             return;
         }
@@ -183,7 +231,7 @@ impl FlickApp {
                 }
             }
         }
-        self.request_neighbors();
+        self.request_neighbors(false);
     }
 
     /// Reset per-folder state after `self.index.dir` changed.
@@ -194,17 +242,37 @@ impl FlickApp {
         self.errors.clear();
         self.full_failed.clear();
         self.watch_dirty_since = None;
+        self.scan_failures = 0;
+        self.start_watcher();
+        self.request_neighbors(false);
+    }
+
+    /// Start watching the current folder. Creating the watcher can block on
+    /// a privacy prompt, so it happens in the background.
+    fn start_watcher(&mut self) {
+        self.watcher = None;
+        self.watcher_pending = true;
         self.watch_flag.store(false, Ordering::Relaxed);
         let flag = self.watch_flag.clone();
         let ctx = self.ctx.clone();
         let recursive = self.settings.sorting.recursive;
-        self.watcher = FolderWatcher::new(&self.index.dir, recursive, move || {
-            flag.store(true, Ordering::Relaxed);
-            ctx.request_repaint();
-        })
-        .map_err(|e| tracing::debug!("cannot watch {}: {e}", self.index.dir.display()))
-        .ok();
-        self.request_neighbors();
+        let dir = self.index.dir.clone();
+        self.spawn_bg(move || {
+            let watcher = FolderWatcher::new(&dir, recursive, move || {
+                flag.store(true, Ordering::Relaxed);
+                ctx.request_repaint();
+            })
+            .map_err(|e| tracing::debug!("cannot watch {}: {e}", dir.display()))
+            .ok();
+            BgEvent::Watcher { dir, watcher }
+        });
+    }
+
+    pub(crate) fn on_watcher(&mut self, dir: PathBuf, watcher: Option<FolderWatcher>) {
+        if dir == self.index.dir {
+            self.watcher = watcher;
+            self.watcher_pending = false;
+        }
     }
 
     /// Re-read the folder shortly after it changed on disk.
@@ -235,9 +303,16 @@ impl FlickApp {
     }
 
     /// Pre-index the next and previous folders in the background.
-    pub(crate) fn request_neighbors(&mut self) {
+    pub(crate) fn request_neighbors(&mut self, on_demand: bool) {
         let dir = self.index.dir.clone();
         if dir.as_os_str().is_empty() {
+            return;
+        }
+        // Looking into sibling folders ahead of time is only a convenience.
+        // Directly under the home folder the siblings are Documents, Downloads,
+        // Pictures, … – unrelated places that macOS guards with one privacy
+        // prompt each – so there we wait until the user actually asks to move on.
+        if !on_demand && !preindex_allowed(&dir) {
             return;
         }
         for direction in [Direction::Forward, Direction::Backward] {
@@ -285,7 +360,7 @@ impl FlickApp {
         for n in &mut self.neighbors {
             n.state = NeighborState::Unknown;
         }
-        self.request_neighbors();
+        self.request_neighbors(false);
     }
 
     pub(crate) fn on_neighbor(
@@ -355,7 +430,7 @@ impl FlickApp {
         let n = &self.neighbors[slot(direction)];
         let current_dir = self.index.dir.clone();
         if n.from != current_dir || matches!(n.state, NeighborState::Unknown) {
-            self.request_neighbors();
+            self.request_neighbors(true);
         }
         let next = match &self.neighbors[slot(direction)].state {
             NeighborState::Ready(Some(ix)) => ix.clone(),

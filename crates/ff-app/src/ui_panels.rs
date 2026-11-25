@@ -1,6 +1,6 @@
 //! Side panel (metadata), the Settings window and modal dialogs.
 
-use crate::app::{FlickApp, Modal, SettingsTab};
+use crate::app::{AssocOp, FlickApp, Modal, SettingsTab};
 use crate::ui_strip::{MAX_THUMB, MIN_THUMB};
 use eframe::egui::{self, Color32, RichText};
 use ff_core::config::{Background, FolderEntry, ScrollMode, StripPosition, TRANSITIONS};
@@ -11,6 +11,7 @@ use ff_core::i18n::{t, tf, Lang};
 use ff_core::input::{Action, BindError, Binding, KeyBindings};
 use ff_core::nav::{EndOfFolder, FolderSort};
 use ff_core::IS_MAC;
+use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 fn transition_label(name: &str) -> &str {
@@ -771,45 +772,86 @@ impl FlickApp {
         }
     }
 
-    /// Query (and optionally first change) the default-app status in the background.
-    /// `make_default` lists indexes into `FILE_TYPE_GROUPS` to claim first.
-    pub(crate) fn refresh_associations(&mut self, make_default: Vec<usize>) {
+    /// Apply `ops` to the default-app associations and query the resulting
+    /// status, all in the background.
+    pub(crate) fn refresh_associations(&mut self, ops: Vec<AssocOp>) {
         if self.assoc_busy {
             return;
         }
         self.assoc_busy = true;
+        let previous = self.settings.associations.previous.clone();
         self.spawn_bg(move || {
             let os = ff_platform::integration();
-            let mut error = None;
-            let mut claimed = Vec::new();
-            for i in &make_default {
-                let Some((_, extensions, mime)) = FILE_TYPE_GROUPS.get(*i) else {
-                    continue;
-                };
-                let mut ok = true;
-                for ext in extensions.iter() {
-                    if let Err(e) = os.set_default_for(ext, mime) {
-                        ok = false;
-                        error.get_or_insert(e.to_string());
+            let own = os.own_handler_id();
+            let is_own = |handler: &str| {
+                own.as_deref()
+                    .is_some_and(|me| me.eq_ignore_ascii_case(handler))
+            };
+            let mut error: Option<String> = None;
+            let mut changed = Vec::new();
+            let mut remember = Vec::new();
+            for op in ops {
+                match op {
+                    AssocOp::Claim(i) => {
+                        let (Some((_, extensions, mime)), Some(me)) =
+                            (FILE_TYPE_GROUPS.get(i), own.as_deref())
+                        else {
+                            continue;
+                        };
+                        // Remember who had each extension so it can be given back.
+                        for ext in extensions.iter() {
+                            if let Some(handler) =
+                                os.default_handler_for(ext, mime).filter(|h| !is_own(h))
+                            {
+                                remember.push(((*ext).to_owned(), handler));
+                            }
+                        }
+                        match os.set_default_handler(extensions, mime, me) {
+                            Ok(()) => changed.push((i, true)),
+                            Err(e) => {
+                                error.get_or_insert(e.to_string());
+                            }
+                        }
                     }
-                }
-                if ok {
-                    claimed.push(*i);
+                    AssocOp::Restore(i) => {
+                        let Some((_, extensions, mime)) = FILE_TYPE_GROUPS.get(i) else {
+                            continue;
+                        };
+                        // Extensions of one type may have come from different apps.
+                        let mut by_handler: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+                        for ext in extensions.iter() {
+                            if let Some(handler) = previous.get(*ext) {
+                                by_handler.entry(handler.as_str()).or_default().push(ext);
+                            }
+                        }
+                        let mut restored = !by_handler.is_empty();
+                        for (handler, list) in by_handler {
+                            if let Err(e) = os.set_default_handler(&list, mime, handler) {
+                                restored = false;
+                                error.get_or_insert(e.to_string());
+                            }
+                        }
+                        if restored {
+                            changed.push((i, false));
+                        }
+                    }
                 }
             }
             let status = FILE_TYPE_GROUPS
                 .iter()
                 .map(|(_, extensions, mime)| {
+                    own.as_ref()?;
                     // A type counts as ours when every one of its extensions opens here.
-                    extensions
-                        .iter()
-                        .map(|ext| os.is_default_for(ext, mime))
-                        .try_fold(true, |all, one| one.map(|d| all && d))
+                    Some(extensions.iter().all(|ext| {
+                        os.default_handler_for(ext, mime)
+                            .is_some_and(|h| is_own(&h))
+                    }))
                 })
                 .collect();
             crate::app::BgEvent::Associations {
                 status,
-                claimed,
+                changed,
+                remember,
                 error,
             }
         });
@@ -845,33 +887,37 @@ impl FlickApp {
         if self.assoc_status.is_none() {
             self.refresh_associations(Vec::new());
         }
-        ui.label(t("Choose which image types open in FlickFlock by default."));
-        ui.add_space(6.0);
         if self.assoc_recheck_at.is_some_and(|at| Instant::now() >= at) && !self.assoc_busy {
             self.assoc_recheck_at = None;
             self.refresh_associations(Vec::new());
         } else if self.assoc_recheck_at.is_some() {
             ui.ctx().request_repaint_after(Duration::from_millis(500));
         }
+        ui.label(t("Choose which image types open in FlickFlock by default."));
+        ui.add_space(6.0);
         let mut status = self.assoc_status.clone().unwrap_or_default();
-        for i in &self.assoc_claimed {
+        for (i, ours) in &self.assoc_changed {
             if let Some(slot) = status.get_mut(*i) {
-                *slot = Some(true);
+                *slot = Some(*ours);
             }
         }
         let busy = self.assoc_busy;
-        let mut claim: Vec<usize> = Vec::new();
+        let previous = &self.settings.associations.previous;
+        let mut ops: Vec<AssocOp> = Vec::new();
         ui.add_enabled_ui(!busy, |ui| {
             let all_ours = !status.is_empty() && status.iter().all(|s| *s == Some(true));
             if ui
                 .add_enabled(!all_ours, egui::Button::new(t("Make default for all")))
                 .clicked()
             {
-                claim = (0..FILE_TYPE_GROUPS.len()).collect();
+                ops = (0..FILE_TYPE_GROUPS.len())
+                    .filter(|i| status.get(*i).copied().flatten() != Some(true))
+                    .map(AssocOp::Claim)
+                    .collect();
             }
             ui.add_space(6.0);
             egui::Grid::new("ff-set-filetypes")
-                .num_columns(3)
+                .num_columns(4)
                 .spacing([16.0, 6.0])
                 .striped(true)
                 .show(ui, |ui| {
@@ -890,8 +936,24 @@ impl FlickApp {
                                 RichText::new(format!("✔ {}", t("Opens in FlickFlock")))
                                     .color(Color32::from_rgb(60, 160, 90)),
                             );
+                            // Offer to hand the type back when we know who had it.
+                            let mut before: Vec<&str> = extensions
+                                .iter()
+                                .filter_map(|e| previous.get(*e))
+                                .map(String::as_str)
+                                .collect();
+                            before.sort_unstable();
+                            before.dedup();
+                            if !before.is_empty()
+                                && ui
+                                    .button(t("Restore previous app"))
+                                    .on_hover_text(before.join(", "))
+                                    .clicked()
+                            {
+                                ops.push(AssocOp::Restore(i));
+                            }
                         } else if ui.button(t("Make default")).clicked() {
-                            claim.push(i);
+                            ops.push(AssocOp::Claim(i));
                         }
                         ui.end_row();
                     }
@@ -900,8 +962,8 @@ impl FlickApp {
         if busy {
             ui.add(egui::Spinner::new());
         }
-        if !claim.is_empty() {
-            self.refresh_associations(claim);
+        if !ops.is_empty() {
+            self.refresh_associations(ops);
         }
     }
 

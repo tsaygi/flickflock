@@ -246,3 +246,4 @@
 "Could not change the default app: {0}" = "Varsayılan uygulama değiştirilemedi: {0}"
 "Pause" = "Duraklat"
 "Resume" = "Sürdür"
+"Restore previous app" = "Önceki uygulamayı geri yükle"
